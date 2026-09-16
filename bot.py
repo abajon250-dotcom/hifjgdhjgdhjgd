@@ -4,7 +4,8 @@ import os
 import re
 from dotenv import load_dotenv
 
-# ⚠️ КРИТИЧНО: .env грузится ДО импорта хендлеров и middleware
+# ⚠️ КРИТИЧНО: .env грузится ДО импорта хендлеров и middleware,
+# иначе utils.subscription.py не увидит переменные каналов
 load_dotenv()
 
 from aiogram import Bot, Dispatcher
@@ -38,7 +39,7 @@ async def _safe_edit(self, text=None, *args, **kwargs):
 TgMessage.edit_text = _safe_edit
 # ============================================================
 
-# Теперь импортируем хендлеры и middleware
+# Только теперь импортируем хендлеры и middleware
 from handlers.start import router as start_router
 from handlers.text_commands import router as text_router
 from handlers.games_menu import router as games_router
@@ -56,6 +57,7 @@ TOKEN = os.getenv("BOT_TOKEN")
 
 
 async def set_bot_commands(bot: Bot):
+    """Устанавливает команды в меню Telegram (русские)."""
     from aiogram.types import BotCommand
     await bot.set_my_commands([
         BotCommand(command="start",   description="🚀 Запустить бота"),
@@ -80,21 +82,32 @@ async def main():
     bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
 
+    # Мидлварь обязательной подписки
     sub_mw = SubscriptionMiddleware()
     dp.message.middleware(sub_mw)
     dp.callback_query.middleware(sub_mw)
 
-    # ⚠️ ПОРЯДОК ВАЖЕН!
-    dp.include_router(start_router)       # 1. start — reply-кнопки
-    dp.include_router(text_router)        # 2. текст команды
+    # ============================================================
+    # ⚠️ ПОРЯДОК РОУТЕРОВ ВАЖЕН!
+    # ============================================================
+    # start — первым, чтобы reply-кнопки (Баланс/Играть/Меню)
+    # перехватывались раньше текстовых команд
+    dp.include_router(start_router)
+    # текстовые команды (баланс, куб 5, деп 5, промо, топ, помощь)
+    dp.include_router(text_router)
+    # меню игр (открытие подменю)
     dp.include_router(games_router)
+    # платёжки
     dp.include_router(payments_router)
     dp.include_router(wallet_router)
+    # игры
     dp.include_router(dice_router)
     dp.include_router(sport_router)
     dp.include_router(slots_router)
     dp.include_router(arcades_router)
-    dp.include_router(group_router)       # последним — для групп
+    # группы — ПОСЛЕДНИМИ, чтобы не перехватывали ЛС
+    dp.include_router(group_router)
+    # админка
     dp.include_router(admin_router)
 
     await bot.delete_webhook(drop_pending_updates=True)
