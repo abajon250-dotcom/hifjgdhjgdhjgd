@@ -348,8 +348,12 @@ async def ref_link(call: types.CallbackQuery):
 async def ref_top(call: types.CallbackQuery):
     top = db.get_top_wagered(10)
     text = f"{TOP} <b>Топ игроков:</b>\n\n"
+    medals = ["🥇", "🥈", "🥉"]
     for i, (uid, uname, wag) in enumerate(top, 1):
-        text += f"{i}. {uname or uid} — <b>{wag:.2f}</b> {DOLLAR}\n"
+        medal = medals[i - 1] if i <= 3 else f"{i}."
+        name = uname or f"id{uid}"
+        text += (f"{medal} <a href='tg://user?id={uid}'>{name}</a> — "
+                 f"<b>{wag:.2f}</b> {DOLLAR}\n")
     await safe_edit(call.message, text, reply_markup=referrals_menu(),
                     parse_mode="HTML")
     await call.answer()

@@ -103,8 +103,12 @@ async def cmd_games(message: types.Message):
 async def cmd_top(message: types.Message):
     top = db.get_top_wagered(10)
     text = f"{TOP} <b>Топ игроков:</b>\n\n"
+    medals = ["🥇", "🥈", "🥉"]
     for i, (uid, uname, wag) in enumerate(top, 1):
-        text += f"{i}. {uname or uid} — <b>{wag:.2f}</b> {DOLLAR}\n"
+        medal = medals[i - 1] if i <= 3 else f"{i}."
+        name = uname or f"id{uid}"
+        text += (f"{medal} <a href='tg://user?id={uid}'>{name}</a> — "
+                 f"<b>{wag:.2f}</b> {DOLLAR}\n")
     await message.answer(text, reply_markup=back_menu(), parse_mode="HTML")
 
 
