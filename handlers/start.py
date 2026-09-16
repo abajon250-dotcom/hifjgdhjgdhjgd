@@ -91,11 +91,10 @@ async def cmd_start(message: types.Message):
     db.set_username(uid, message.from_user.username or "Игрок")
     is_admin = (uid == ADMIN_ID)
 
-    # Reply-клавиатура внизу (обновляется при каждом /start)
+    # Reply-клавиатура ТОЛЬКО в ЛС (при /start)
     await message.answer(f"🎰 <b>{CASINO_NAME}</b>",
                          reply_markup=main_menu(is_admin), parse_mode="HTML")
 
-    # Inline-меню
     await safe_answer(message, _main_text(uid, message.from_user.full_name),
                       reply_markup=main_menu_inline(is_admin),
                       parse_mode="HTML")
