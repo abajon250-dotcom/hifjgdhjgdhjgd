@@ -6,25 +6,33 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 # ============================================================
 def main_menu_inline(is_admin: bool = False):
     rows = [
+        [InlineKeyboardButton(text="Профиль", callback_data="profile",
+                              icon_custom_emoji_id="5308004189677330658",
+                              style="primary"),
+         InlineKeyboardButton(text="Игры", callback_data="games_main",
+                              icon_custom_emoji_id="5309815458990433715",
+                              style="success")],
         [InlineKeyboardButton(text="Статистика", callback_data="stats",
                               icon_custom_emoji_id="5231200819986047254",
                               style="primary"),
+         InlineKeyboardButton(text="Бонусы", callback_data="bonuses",
+                              icon_custom_emoji_id="5307603391919204061",
+                              style="success")],
+        [InlineKeyboardButton(text="Рефералы", callback_data="referrals",
+                              icon_custom_emoji_id="5395732581780040886",
+                              style="primary"),
          InlineKeyboardButton(text="Приватность", callback_data="privacy",
                               icon_custom_emoji_id="5197288647275071607")],
-        [InlineKeyboardButton(text="Бонусы", callback_data="bonuses",
-                              icon_custom_emoji_id="5307603391919204061",
+        [InlineKeyboardButton(text="Пополнить", callback_data="deposit",
+                              icon_custom_emoji_id="5445355530111437729",
                               style="success"),
-         InlineKeyboardButton(text="Рефералы", callback_data="referrals",
-                              icon_custom_emoji_id="5395732581780040886",
-                              style="primary")],
-        [InlineKeyboardButton(text="Игры", callback_data="games_main",
-                              icon_custom_emoji_id="5309815458990433715",
-                              style="success")],
+         InlineKeyboardButton(text="Вывести", callback_data="withdraw",
+                              icon_custom_emoji_id="5443127283898405358",
+                              style="danger")],
     ]
     if is_admin:
-        rows.append([InlineKeyboardButton(text="Админ-панель",
+        rows.append([InlineKeyboardButton(text="👑 Админ-панель",
                                           callback_data="admin_panel",
-                                          icon_custom_emoji_id="5463289097336405244",
                                           style="danger")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 

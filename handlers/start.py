@@ -16,7 +16,7 @@ from utils.emoji import (PROFILE, DOLLAR, FLY_MONEY, DICE, STATS, TIME,
 
 router = Router()
 ADMIN_ID = int(os.getenv("ADMIN_ID", 0))
-CASINO_NAME = os.getenv("CASINO_NAME", "SpinX")
+CASINO_NAME = os.getenv("CASINO_NAME", "Onyx")
 PVT = F.chat.type == ChatType.PRIVATE
 
 
@@ -24,10 +24,8 @@ def _main_text(uid, full_name):
     db.get_user(uid)
     s = db.get_stats(uid)
     vip = db.get_vip_info(uid)
-
     next_name = vip["next"][1] if vip["next"] else "MAX"
     next_emoji = vip["next"][2] if vip["next"] else "👑"
-
     return (
         f"{PROFILE} <b>#{uid} {full_name}</b>\n\n"
         f"{DOLLAR} <b>Баланс — {s['balance']:.2f}</b>\n\n"
@@ -39,8 +37,36 @@ def _main_text(uid, full_name):
     )
 
 
+def _wallet_kb():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Пополнить", callback_data="deposit",
+                              icon_custom_emoji_id="5445355530111437729",
+                              style="success"),
+         InlineKeyboardButton(text="Вывести", callback_data="withdraw",
+                              icon_custom_emoji_id="5443127283898405358",
+                              style="danger")],
+        [InlineKeyboardButton(text="Назад", callback_data="back_to_main",
+                              style="danger")],
+    ])
+
+
+def _wallet_text(uid):
+    db.get_user(uid)
+    bal = db.get_balance(uid)
+    bet = db.get_bet(uid)
+    s = db.get_stats(uid)
+    return (
+        f"{WALLET} <b>Кошелёк</b>\n\n"
+        f"{DOLLAR} Баланс: <b>{bal:.2f}</b>\n"
+        f"{BET} Ставка: <b>{bet}</b>\n"
+        f"{FLY_MONEY} Оборот: <b>{s['total_wagered']:.2f}</b>\n"
+        f"{DICE} Игр: <b>{s['games_played']}</b>\n\n"
+        f"Выберите действие:"
+    )
+
+
 # ============================================================
-#                       /start (только ЛС)
+#                       /start
 # ============================================================
 @router.message(Command("start"), PVT)
 async def cmd_start(message: types.Message):
@@ -64,30 +90,22 @@ async def cmd_start(message: types.Message):
     is_new = not db.user_exists(uid)
     db.get_user(uid)
     db.set_username(uid, message.from_user.username or "Игрок")
-
     is_admin = (uid == ADMIN_ID)
+
+    if is_new:
+        await message.answer(f"🎰 <b>{CASINO_NAME}</b>",
+                             reply_markup=main_menu(is_admin), parse_mode="HTML")
+
     await safe_answer(message, _main_text(uid, message.from_user.full_name),
                       reply_markup=main_menu_inline(is_admin),
                       parse_mode="HTML")
 
-    # Reply-клавиатура только ОДИН раз (для новых)
-    if is_new:
-        await message.answer("👇", reply_markup=main_menu(is_admin))
 
-
-# ============================================================
-#              ПРОВЕРКА ПОДПИСКИ
-# ============================================================
 @router.callback_query(F.data == "check_sub")
 async def check_sub_cb(call: types.CallbackQuery):
     not_sub = await check_subscription(call.bot, call.from_user.id)
     if not_sub:
-        return await call.answer("❌ Вы ещё не подписались на все каналы!",
-                                 show_alert=True)
-
-    db.get_user(call.from_user.id)
-    db.set_username(call.from_user.id, call.from_user.username or "Игрок")
-
+        return await call.answer("❌ Вы ещё не подписались!", show_alert=True)
     is_admin = (call.from_user.id == ADMIN_ID)
     await safe_edit(call.message,
                     _main_text(call.from_user.id, call.from_user.full_name),
@@ -97,57 +115,16 @@ async def check_sub_cb(call: types.CallbackQuery):
 
 
 # ============================================================
-#              КНОПКА «МЕНЮ» (как /start)
+#              REPLY-КНОПКИ (работают и старые, и новые)
 # ============================================================
-@router.message(F.text.in_({"📋 Меню", "Меню", "меню"}), PVT)
-async def btn_menu(message: types.Message):
-    uid = message.from_user.id
-    if db.is_banned(uid):
-        return
-
-    not_sub = await check_subscription(message.bot, uid)
-    if not_sub and uid != ADMIN_ID:
-        return await message.answer(subscribe_text(),
-                                    reply_markup=subscribe_kb(),
-                                    parse_mode="HTML")
-
-    db.get_user(uid)
-    db.set_username(uid, message.from_user.username or "Игрок")
-    is_admin = (uid == ADMIN_ID)
-    await safe_answer(message, _main_text(uid, message.from_user.full_name),
-                      reply_markup=main_menu_inline(is_admin),
-                      parse_mode="HTML")
-
-
-@router.message(F.text.in_({"Кошелёк", "💼 Кошелёк", "💰 Баланс", "баланс"}), PVT)
+@router.message(F.text.in_({"Кошелёк", "💼 Кошелёк", "💰 Баланс", "Баланс"}), PVT)
 async def btn_wallet(message: types.Message):
     uid = message.from_user.id
-    db.get_user(uid)
-    bal = db.get_balance(uid)
-    bet = db.get_bet(uid)
-    s = db.get_stats(uid)
-    text = (
-        f"{WALLET} <b>Кошелёк</b>\n\n"
-        f"{DOLLAR} Баланс: <b>{bal:.2f}</b>\n"
-        f"{BET} Ставка: <b>{bet}</b>\n"
-        f"{FLY_MONEY} Оборот: <b>{s['total_wagered']:.2f}</b>\n"
-        f"{DICE} Игр: <b>{s['games_played']}</b>\n\n"
-        f"Выберите действие:"
-    )
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Пополнить", callback_data="deposit",
-                              icon_custom_emoji_id="5445355530111437729",
-                              style="success"),
-         InlineKeyboardButton(text="Вывести", callback_data="withdraw",
-                              icon_custom_emoji_id="5443127283898405358",
-                              style="danger")],
-        [InlineKeyboardButton(text="Назад", callback_data="back_to_main",
-                              style="danger")],
-    ])
-    await safe_answer(message, text, reply_markup=kb, parse_mode="HTML")
+    await safe_answer(message, _wallet_text(uid),
+                      reply_markup=_wallet_kb(), parse_mode="HTML")
 
 
-@router.message(F.text == "🎮 Играть", PVT)
+@router.message(F.text.in_({"Играть", "🎮 Играть", "🎮"}), PVT)
 async def btn_play(message: types.Message):
     uid = message.from_user.id
     bal = db.get_balance(uid)
@@ -159,12 +136,90 @@ async def btn_play(message: types.Message):
         reply_markup=games_main(), parse_mode="HTML")
 
 
+@router.message(F.text.in_({"Меню", "📋 Меню", "меню"}), PVT)
+async def btn_menu(message: types.Message):
+    uid = message.from_user.id
+    if db.is_banned(uid):
+        return
+    not_sub = await check_subscription(message.bot, uid)
+    if not_sub and uid != ADMIN_ID:
+        return await message.answer(subscribe_text(),
+                                    reply_markup=subscribe_kb(),
+                                    parse_mode="HTML")
+    db.get_user(uid)
+    is_admin = (uid == ADMIN_ID)
+    await safe_answer(message, _main_text(uid, message.from_user.full_name),
+                      reply_markup=main_menu_inline(is_admin),
+                      parse_mode="HTML")
+
+
+# ============================================================
+#              INLINE CALLBACKS
+# ============================================================
 @router.callback_query(F.data == "back_to_main")
 async def back_to_main(call: types.CallbackQuery):
     uid = call.from_user.id
     is_admin = (uid == ADMIN_ID)
     await safe_edit(call.message, _main_text(uid, call.from_user.full_name),
                     reply_markup=main_menu_inline(is_admin), parse_mode="HTML")
+    await call.answer()
+
+
+@router.callback_query(F.data == "menu")
+async def menu_cb(call: types.CallbackQuery):
+    uid = call.from_user.id
+    if db.is_banned(uid):
+        return await call.answer("🚫 Забанен", show_alert=True)
+    not_sub = await check_subscription(call.bot, uid)
+    if not_sub and uid != ADMIN_ID:
+        return await call.answer("🔒 Подпишись на каналы!", show_alert=True)
+    is_admin = (uid == ADMIN_ID)
+    await safe_edit(call.message, _main_text(uid, call.from_user.full_name),
+                    reply_markup=main_menu_inline(is_admin), parse_mode="HTML")
+    await call.answer()
+
+
+@router.callback_query(F.data == "wallet")
+async def wallet_cb(call: types.CallbackQuery):
+    await safe_edit(call.message, _wallet_text(call.from_user.id),
+                    reply_markup=_wallet_kb(), parse_mode="HTML")
+    await call.answer()
+
+
+@router.callback_query(F.data == "profile")
+async def profile_cb(call: types.CallbackQuery):
+    uid = call.from_user.id
+    db.get_user(uid)
+    s = db.get_stats(uid)
+    vip = db.get_vip_info(uid)
+    next_name = vip["next"][1] if vip["next"] else "MAX"
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🎁 Ввести промокод",
+                              callback_data="promo_enter", style="success")],
+        [InlineKeyboardButton(text="📊 Статистика", callback_data="stats",
+                              style="primary")],
+        [InlineKeyboardButton(text="Назад", callback_data="back_to_main",
+                              style="danger")],
+    ])
+    await safe_edit(call.message,
+        f"{PROFILE} <b>Профиль</b>\n\n"
+        f"{DOLLAR} Баланс: <b>{s['balance']:.2f}</b>\n"
+        f"{VIP} VIP: <b>{vip['progress']:.0f}%</b> "
+        f"({vip['current'][1]} → {next_name})\n"
+        f"{DICE} Игр: <b>{s['games_played']}</b>\n"
+        f"{REF} Приглашено: <b>{s['invited_count']}</b>\n\n"
+        f"<b>Промокод</b> — активируй бонус: <code>промо КОД</code>",
+        reply_markup=kb, parse_mode="HTML")
+    await call.answer()
+
+
+@router.callback_query(F.data == "promo_enter")
+async def promo_enter(call: types.CallbackQuery):
+    await call.message.answer(
+        "🎁 <b>Введите промокод</b>\n\n"
+        "Напиши в чат: <code>промо КОД</code>\n"
+        "Например: <code>промо ONYX2025</code>",
+        reply_markup=back_menu(), parse_mode="HTML")
     await call.answer()
 
 
