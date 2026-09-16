@@ -1,5 +1,6 @@
 import os
 import aiohttp
+import time
 from aiogram import Router, F, types
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -154,7 +155,7 @@ async def _process_deposit(call, method: str, amount: float):
             "payoutCurrency": "USDT",
             "payCurrencies": ["USDT"],
             "description": f"Пополнение баланса",
-            "clientInvoiceId": f"dep_{uid}_{int(amount*100)}",
+            "clientInvoiceId": f"dep_{uid}_{int(amount * 100)}_{int(time.time())}",
             "expiresIn": 900,
             "customer": {"telegramId": str(uid)},
         }
