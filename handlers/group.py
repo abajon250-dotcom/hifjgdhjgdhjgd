@@ -9,11 +9,12 @@ from utils.emoji import DOLLAR
 
 router = Router()
 
+# Только для групповых чатов
 GROUP_FILTER = F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP})
 
 
 # ============================================================
-#              БАЗОВЫЕ КОМАНДЫ В ЧАТЕ (русские + английские)
+#              БАЗОВЫЕ КОМАНДЫ В ЧАТЕ
 # ============================================================
 @router.message(GROUP_FILTER, Command("balance", "bal", "баланс", "бал"))
 async def group_balance(message: types.Message):
@@ -140,6 +141,7 @@ async def group_dice_play(call: types.CallbackQuery):
     v = m.dice.value
 
     win, result = calc_1_dice(bet, choice, v)
+
     uname = call.from_user.full_name or "Игрок"
     mention = f'<a href="tg://user?id={uid}">{uname}</a>'
 

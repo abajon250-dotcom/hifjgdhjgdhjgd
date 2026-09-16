@@ -66,7 +66,7 @@ def _wallet_text(uid):
 
 
 # ============================================================
-#                       /start
+#                       /start (только ЛС)
 # ============================================================
 @router.message(Command("start"), PVT)
 async def cmd_start(message: types.Message):
@@ -87,15 +87,15 @@ async def cmd_start(message: types.Message):
         except Exception:
             pass
 
-    is_new = not db.user_exists(uid)
     db.get_user(uid)
     db.set_username(uid, message.from_user.username or "Игрок")
     is_admin = (uid == ADMIN_ID)
 
-    if is_new:
-        await message.answer(f"🎰 <b>{CASINO_NAME}</b>",
-                             reply_markup=main_menu(is_admin), parse_mode="HTML")
+    # Reply-клавиатура внизу (обновляется при каждом /start)
+    await message.answer(f"🎰 <b>{CASINO_NAME}</b>",
+                         reply_markup=main_menu(is_admin), parse_mode="HTML")
 
+    # Inline-меню
     await safe_answer(message, _main_text(uid, message.from_user.full_name),
                       reply_markup=main_menu_inline(is_admin),
                       parse_mode="HTML")
@@ -115,9 +115,9 @@ async def check_sub_cb(call: types.CallbackQuery):
 
 
 # ============================================================
-#              REPLY-КНОПКИ (работают и старые, и новые)
+#              REPLY-КНОПКИ (только ЛС)
 # ============================================================
-@router.message(F.text.in_({"Кошелёк", "💼 Кошелёк", "💰 Баланс", "Баланс"}), PVT)
+@router.message(F.text.in_({"Баланс", "💰 Баланс", "Кошелёк", "💼 Кошелёк"}), PVT)
 async def btn_wallet(message: types.Message):
     uid = message.from_user.id
     await safe_answer(message, _wallet_text(uid),
@@ -136,7 +136,7 @@ async def btn_play(message: types.Message):
         reply_markup=games_main(), parse_mode="HTML")
 
 
-@router.message(F.text.in_({"Меню", "📋 Меню", "меню"}), PVT)
+@router.message(F.text.in_({"Меню", "📋 Меню"}), PVT)
 async def btn_menu(message: types.Message):
     uid = message.from_user.id
     if db.is_banned(uid):
@@ -217,8 +217,7 @@ async def profile_cb(call: types.CallbackQuery):
 async def promo_enter(call: types.CallbackQuery):
     await call.message.answer(
         "🎁 <b>Введите промокод</b>\n\n"
-        "Напиши в чат: <code>промо КОД</code>\n"
-        "Например: <code>промо ONYX2025</code>",
+        "Напиши в чат: <code>промо КОД</code>",
         reply_markup=back_menu(), parse_mode="HTML")
     await call.answer()
 

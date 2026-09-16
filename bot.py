@@ -4,8 +4,7 @@ import os
 import re
 from dotenv import load_dotenv
 
-# ⚠️ КРИТИЧНО: загружаем .env ДО импорта хендлеров и middlewares,
-# иначе utils.subscription.py не увидит переменные окружения
+# ⚠️ КРИТИЧНО: .env грузится ДО импорта хендлеров и middleware
 load_dotenv()
 
 from aiogram import Bot, Dispatcher
@@ -39,8 +38,9 @@ async def _safe_edit(self, text=None, *args, **kwargs):
 TgMessage.edit_text = _safe_edit
 # ============================================================
 
-# Только теперь импортируем хендлеры и middleware
+# Теперь импортируем хендлеры и middleware
 from handlers.start import router as start_router
+from handlers.text_commands import router as text_router
 from handlers.games_menu import router as games_router
 from handlers.payments import router as payments_router
 from handlers.wallet import router as wallet_router
@@ -48,7 +48,6 @@ from handlers.dice_games import router as dice_router
 from handlers.sport_games import router as sport_router
 from handlers.slots import router as slots_router
 from handlers.arcades import router as arcades_router
-from handlers.text_commands import router as text_router
 from handlers.group import router as group_router
 from handlers.admin import router as admin_router
 from middlewares.subscription import SubscriptionMiddleware
@@ -81,15 +80,13 @@ async def main():
     bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
 
-    # Мидлварь обязательной подписки
     sub_mw = SubscriptionMiddleware()
     dp.message.middleware(sub_mw)
     dp.callback_query.middleware(sub_mw)
 
-    # ⚠️ Порядок важен!
-    dp.include_router(group_router)     # групповые команды
-    dp.include_router(text_router)      # текстовые (баланс, деп 5, куб 5, вб)
-    dp.include_router(start_router)
+    # ⚠️ ПОРЯДОК ВАЖЕН!
+    dp.include_router(start_router)       # 1. start — reply-кнопки
+    dp.include_router(text_router)        # 2. текст команды
     dp.include_router(games_router)
     dp.include_router(payments_router)
     dp.include_router(wallet_router)
@@ -97,6 +94,7 @@ async def main():
     dp.include_router(sport_router)
     dp.include_router(slots_router)
     dp.include_router(arcades_router)
+    dp.include_router(group_router)       # последним — для групп
     dp.include_router(admin_router)
 
     await bot.delete_webhook(drop_pending_updates=True)

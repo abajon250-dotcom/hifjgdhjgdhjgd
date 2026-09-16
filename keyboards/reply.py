@@ -3,7 +3,7 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
 def main_menu(is_admin: bool = False):
     rows = [
-        [KeyboardButton(text="Кошелёк",
+        [KeyboardButton(text="Баланс",
                         icon_custom_emoji_id="5310262449121827356"),
          KeyboardButton(text="Играть",
                         icon_custom_emoji_id="5309815458990433715"),
@@ -18,3 +18,8 @@ def main_menu(is_admin: bool = False):
         resize_keyboard=True,
         is_persistent=True
     )
+
+
+def hide_menu():
+    """Скрывает reply-клавиатуру (для групп)."""
+    return ReplyKeyboardMarkup(keyboard=[], resize_keyboard=True)

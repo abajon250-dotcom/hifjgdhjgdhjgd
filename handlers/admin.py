@@ -31,9 +31,12 @@ class AdminState(StatesGroup):
 # ============================================================
 def admin_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📊 Обновить", callback_data="admin_refresh")],
+        [InlineKeyboardButton(text="📊 Обновить", callback_data="admin_refresh"),
+         InlineKeyboardButton(text="💰 Казна", callback_data="admin_treasury",
+                              style="success")],
         [InlineKeyboardButton(text="👥 Пользователи", callback_data="admin_users"),
-         InlineKeyboardButton(text="🎁 Промокод", callback_data="admin_promo")],
+         InlineKeyboardButton(text="🎁 Создать промокод",
+                              callback_data="admin_promo", style="success")],
         [InlineKeyboardButton(text="📢 Рассылка", callback_data="admin_broadcast")],
         [InlineKeyboardButton(text="💰 Выдать", callback_data="admin_give"),
          InlineKeyboardButton(text="💸 Забрать", callback_data="admin_take")],
@@ -338,3 +341,62 @@ async def admin_users(call: types.CallbackQuery):
     ])
     await call.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
     await call.answer()
+
+# ============================================================
+#              КАЗНА
+# ============================================================
+@router.callback_query(F.data == "admin_treasury")
+async def admin_treasury(call: types.CallbackQuery):
+    if not is_admin(call.from_user.id):
+        return await call.answer("Нет доступа", show_alert=True)
+
+    await call.answer("⏳ Считаю казну...", show_alert=False)
+
+    from utils.treasury import get_treasury
+    try:
+        t = await get_treasury()
+    except Exception as e:
+        return await call.message.answer(f"❌ Ошибка: {e}")
+
+    # Определяем статус резерва
+    if t["reserve"] >= 0:
+        status = "🟢 <b>Казна в плюсе</b>"
+    else:
+        status = "🔴 <b>ВНИМАНИЕ: резерва не хватает!</b>"
+
+    text = (
+        f"💰 <b>КАЗНА КАЗИНО</b>\n\n"
+
+        f"<b>💳 Платёжные системы:</b>\n"
+        f"  🏦 CryptoBot: <b>{t['crypto']:.2f}</b> USDT\n"
+        f"  ℹ️ xRocket: <b>{t['xrocket']:.2f}</b> USDT\n"
+        f"  📊 Всего на платёжках: <b>{t['total_on_platforms']:.2f}</b> USDT\n\n"
+
+        f"<b>👥 Обязательства перед юзерами:</b>\n"
+        f"  💼 На балансах: <b>{t['users_balance']:.2f}</b> USDT\n\n"
+
+        f"<b>📈 Статистика:</b>\n"
+        f"  ⬇️ Пополнено: <b>{t['deposited']:.2f}</b>\n"
+        f"  ⬆️ Выведено: <b>{t['withdrawn']:.2f}</b>\n"
+        f"  📉 Оборот: <b>{t['wagered']:.2f}</b>\n"
+        f"  💸 Выиграно юзерам: <b>{t['won']:.2f}</b>\n\n"
+
+        f"<b>💵 Итог:</b>\n"
+        f"  💰 Профит казино: <b>{t['profit']:.2f}</b> USDT\n"
+        f"  🏦 Резерв (платёжки − обязательства): "
+        f"<b>{t['reserve']:.2f}</b> USDT\n\n"
+
+        f"{status}"
+    )
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔄 Обновить", callback_data="admin_treasury",
+                              style="success")],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_refresh",
+                              style="danger")],
+    ])
+
+    try:
+        await call.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
+    except Exception:
+        await call.message.answer(text, reply_markup=kb, parse_mode="HTML")
