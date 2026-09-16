@@ -4,9 +4,14 @@ from aiogram import Bot
 
 log = logging.getLogger(__name__)
 
-SOURCE_ID = os.getenv("SOURCE_CHANNEL_ID")           # CatHome | Game
-TARGET_ID = os.getenv("WIN_NOTIFY_CHANNEL")          # CatHome | BETS
-MIN_WIN = float(os.getenv("WIN_NOTIFY_MIN", 10))
+
+def _get_ids():
+    """Читает ID каналов при каждом вызове — env точно загружен."""
+    return (
+        os.getenv("SOURCE_CHANNEL_ID"),
+        os.getenv("WIN_NOTIFY_CHANNEL"),
+        float(os.getenv("WIN_NOTIFY_MIN", 0.5)),
+    )
 
 
 CHOICE_TEXT = {
@@ -22,10 +27,21 @@ CHOICE_TEXT = {
     "straight": "Стрит", "combination": "Комбинация",
     "greater_10": "Сумма > 10", "less_11": "Сумма < 11",
     "big": "Большой куб",
+    # Спорт
+    "clean": "Чистый гол", "any": "Любой гол", "stuck": "Застрял мяч",
+    "miss": "Промах", "center": "Центр", "red": "Красный",
+    "white": "Белый", "bounce": "Отскок", "nine": "Девятка",
+    "bar": "Штанга", "strike": "Страйк",
+    "otskok": "Отскок", "blizko": "Близко", "zastryal": "Застрял",
+    "edge": "С краем", "direct": "Прямое",
+    # Слоты
+    "777": "777", "77x": "77*", "any_sl": "Любая комбинация",
+    "lucky7": "Лаки 7", "lines": "Линии", "sum": "Сумма",
+    "piggy": "Копилка", "ladder": "Лесенка",
 }
 
 
-def _choice_label(choice: str) -> str:
+def _label(choice: str) -> str:
     if choice in CHOICE_TEXT:
         return CHOICE_TEXT[choice]
     if choice.startswith("num"):
@@ -41,15 +57,21 @@ async def notify_result(bot: Bot, uid: int, username: str, game: str,
                         choice: str, bet: float, win: float,
                         mult: float, balance: float, is_win: bool):
     """Отправляет результат: пишет в SOURCE, потом пересылает в TARGET."""
-    if not SOURCE_ID or not TARGET_ID:
-        log.warning("[notify] SOURCE_CHANNEL_ID или WIN_NOTIFY_CHANNEL не заданы")
+    source_id, target_id, min_win = _get_ids()
+
+    log.info(f"[notify] source={source_id} target={target_id} min={min_win}")
+    log.info(f"[notify] bet={bet} win={win} game={game}")
+
+    if not source_id or not target_id:
+        log.warning("[notify] SOURCE_CHANNEL_ID или WIN_NOTIFY_CHANNEL не заданы в .env")
         return
 
-    if win < MIN_WIN and bet < MIN_WIN:
+    if win < min_win and bet < min_win:
+        log.info(f"[notify] ниже порога: win={win} bet={bet} < {min_win}")
         return
 
     mention = f'<a href="tg://user?id={uid}">@{username or "player"}</a>'
-    label = _choice_label(choice)
+    label = _label(choice)
 
     if is_win:
         header = f"😎 {mention}, выиграл <b>{win:.2f}</b>💲"
@@ -64,23 +86,23 @@ async def notify_result(bot: Bot, uid: int, username: str, game: str,
     )
 
     try:
-        # 1. Отправляем в SOURCE (CatHome | Game)
-        msg = await bot.send_message(int(SOURCE_ID), text, parse_mode="HTML")
-        # 2. Пересылаем в TARGET (CatHome | BETS)
+        msg = await bot.send_message(int(source_id), text, parse_mode="HTML")
+        log.info(f"[notify] отправлено в source, id={msg.message_id}")
+
         await bot.forward_message(
-            chat_id=int(TARGET_ID),
-            from_chat_id=int(SOURCE_ID),
+            chat_id=int(target_id),
+            from_chat_id=int(source_id),
             message_id=msg.message_id
         )
-        # 3. Удаляем из SOURCE, чтобы не засорять
+        log.info(f"[notify] переслано в target")
+
         try:
-            await bot.delete_message(int(SOURCE_ID), msg.message_id)
+            await bot.delete_message(int(source_id), msg.message_id)
         except Exception:
             pass
 
-        log.info(f"[notify] Отправлен результат {username}")
     except Exception as e:
-        log.error(f"[notify_result] {e}")
+        log.error(f"[notify_result] ОШИБКА: {e}")
 
 
 async def notify_win(bot, uid, username, game, bet, win, mult, balance=None):

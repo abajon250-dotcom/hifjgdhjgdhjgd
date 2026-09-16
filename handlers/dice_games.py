@@ -5,6 +5,7 @@ from database import db
 from keyboards.inline import dice_menu_1, dice_menu_2, dice_menu_3
 from math_engine import calc_1_dice, calc_2_dice, calc_3_dice
 from utils.emoji import DOLLAR, WALLET, DICE, BET
+from utils.notify import notify_result
 
 router = Router()
 
@@ -137,7 +138,8 @@ async def play_1_two(call: types.CallbackQuery):
         win = 0
         result = "lose"
 
-    await _finish(call, uid, "dice_1_two", v, bet, win, result, 2.8 if result == "win" else 0)
+    await _finish(call, uid, "dice_1_two", v, bet, win, result,
+                  2.8 if result == "win" else 0)
 
 
 # ============================================================
@@ -188,6 +190,9 @@ async def _play(call: types.CallbackQuery, uid: int, dtype: int, choice: str):
     await _finish(call, uid, f"dice_{dtype}", value, bet, win, result, mult)
 
 
+# ============================================================
+#              ФИНИШ + УВЕДОМЛЕНИЕ В КАНАЛ
+# ============================================================
 async def _finish(call, uid, game_key, value, bet, win, result, mult):
     row = db.cursor.execute("SELECT username FROM users WHERE user_id=?",
                              (uid,)).fetchone()
@@ -205,18 +210,43 @@ async def _finish(call, uid, game_key, value, bet, win, result, mult):
         db.update_balance(uid, win)
         db.add_win(uid, win)
         db.add_game(uid, game_key, bet, win, mult, "win")
+        new_bal = db.get_balance(uid)
+
         await call.message.reply(
             f"🔼 {mention} выигрывает <b>{win - bet:.2f}</b> {DOLLAR}\n\n"
             f"<blockquote>🎲 Выпало: <b>{value}</b>\n"
             f"{BET} Ставка: <b>{bet:.2f}</b> {DOLLAR}\n"
-            f"{WALLET} Баланс: <b>{db.get_balance(uid):.2f}</b> {DOLLAR}</blockquote>",
+            f"{WALLET} Баланс: <b>{new_bal:.2f}</b> {DOLLAR}</blockquote>",
             reply_markup=kb, parse_mode="HTML")
+
+        # ⚠️ УВЕДОМЛЕНИЕ В КАНАЛ (выигрыш)
+        try:
+            await notify_result(
+                call.bot, uid, uname,
+                "Кубик", str(value),
+                bet, win, mult, new_bal, True
+            )
+        except Exception as e:
+            print(f"notify_win: {e}")
+
     else:
         db.add_loss(uid, bet)
         db.add_game(uid, game_key, bet, 0, 0, "lose")
+        new_bal = db.get_balance(uid)
+
         await call.message.reply(
             f"🔽 {mention} проигрывает <b>{bet:.2f}</b> {DOLLAR}\n\n"
             f"<blockquote>🎲 Выпало: <b>{value}</b>\n"
             f"{BET} Ставка: <b>{bet:.2f}</b> {DOLLAR}\n"
-            f"{WALLET} Баланс: <b>{db.get_balance(uid):.2f}</b> {DOLLAR}</blockquote>",
+            f"{WALLET} Баланс: <b>{new_bal:.2f}</b> {DOLLAR}</blockquote>",
             reply_markup=kb, parse_mode="HTML")
+
+        # ⚠️ УВЕДОМЛЕНИЕ В КАНАЛ (проигрыш)
+        try:
+            await notify_result(
+                call.bot, uid, uname,
+                "Кубик", str(value),
+                bet, 0, 0, new_bal, False
+            )
+        except Exception as e:
+            print(f"notify_lose: {e}")
