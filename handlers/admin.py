@@ -18,12 +18,15 @@ def is_admin(uid: int) -> bool:
 
 
 class AdminState(StatesGroup):
-    waiting_broadcast    = State()
-    waiting_user_id      = State()
-    waiting_balance_amt  = State()
-    waiting_promo_code   = State()
-    waiting_promo_amount = State()
-    waiting_promo_uses   = State()
+    waiting_broadcast          = State()
+    waiting_user_id            = State()
+    waiting_balance_amt        = State()
+    waiting_promo_code         = State()
+    waiting_promo_amount       = State()
+    waiting_promo_uses         = State()
+    waiting_treasury_amt       = State()
+    waiting_treasury_platform  = State()
+    waiting_treasury_action    = State()
 
 
 # ============================================================
@@ -34,6 +37,11 @@ def admin_kb():
         [InlineKeyboardButton(text="📊 Обновить", callback_data="admin_refresh"),
          InlineKeyboardButton(text="💰 Казна", callback_data="admin_treasury",
                               style="success")],
+        [InlineKeyboardButton(text="➕ Пополнить казну",
+                              callback_data="admin_treasury_add",
+                              style="success"),
+         InlineKeyboardButton(text="✏️ Установить",
+                              callback_data="admin_treasury_set")],
         [InlineKeyboardButton(text="👥 Пользователи", callback_data="admin_users"),
          InlineKeyboardButton(text="🎁 Создать промокод",
                               callback_data="admin_promo", style="success")],
@@ -121,6 +129,166 @@ async def admin_refresh(call: types.CallbackQuery):
 
 
 # ============================================================
+#                    КАЗНА
+# ============================================================
+@router.callback_query(F.data == "admin_treasury")
+async def admin_treasury(call: types.CallbackQuery):
+    if not is_admin(call.from_user.id):
+        return await call.answer("Нет доступа", show_alert=True)
+
+    t = db.get_treasury_manual()
+
+    db.cursor.execute("SELECT COALESCE(SUM(balance),0) FROM users")
+    users_balance = db.cursor.fetchone()[0]
+    db.cursor.execute("SELECT COALESCE(SUM(total_deposited),0) FROM users")
+    deposited = db.cursor.fetchone()[0]
+    db.cursor.execute("SELECT COALESCE(SUM(total_withdrawn),0) FROM users")
+    withdrawn = db.cursor.fetchone()[0]
+
+    total = t["crypto"] + t["xrocket"]
+    reserve = total - users_balance
+
+    upd = t["updated_at"]
+    upd_str = time.strftime("%d.%m.%Y %H:%M", time.localtime(upd)) if upd else "—"
+
+    text = (
+        f"💰 <b>КАЗНА КАЗИНО</b>\n\n"
+
+        f"🏦 <b>CryptoBot:</b> <b>{t['crypto']:.2f}</b> USDT\n"
+        f"ℹ️ <b>xRocket:</b> <b>{t['xrocket']:.2f}</b> USDT\n"
+        f"📊 <b>Всего в казне:</b> <b>{total:.2f}</b> USDT\n"
+        f"🕒 Обновлено: <i>{upd_str}</i>\n\n"
+
+        f"👥 Обязательства юзерам: <b>{users_balance:.2f}</b> USDT\n"
+        f"⬇️ Пополнено: <b>{deposited:.2f}</b>\n"
+        f"⬆️ Выведено: <b>{withdrawn:.2f}</b>\n\n"
+
+        f"{'🟢' if reserve >= 0 else '🔴'} <b>Резерв:</b> "
+        f"<b>{reserve:.2f}</b> USDT"
+    )
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="➕ Пополнить", callback_data="admin_treasury_add",
+                              style="success"),
+         InlineKeyboardButton(text="✏️ Установить", callback_data="admin_treasury_set")],
+        [InlineKeyboardButton(text="🔄 Обновить", callback_data="admin_treasury",
+                              style="primary")],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_refresh",
+                              style="danger")],
+    ])
+    try:
+        await call.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
+    except Exception:
+        await call.message.answer(text, reply_markup=kb, parse_mode="HTML")
+    await call.answer()
+
+
+@router.callback_query(F.data == "admin_treasury_add")
+async def treasury_add(call: types.CallbackQuery, state: FSMContext):
+    if not is_admin(call.from_user.id):
+        return await call.answer("Нет доступа", show_alert=True)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🏦 CryptoBot", callback_data="tadd:crypto",
+                              style="primary")],
+        [InlineKeyboardButton(text="ℹ️ xRocket", callback_data="tadd:xrocket",
+                              style="primary")],
+        [InlineKeyboardButton(text="🔙 Отмена", callback_data="admin_treasury",
+                              style="danger")],
+    ])
+    await call.message.edit_text(
+        "➕ <b>Пополнить казну</b>\n\nВыберите платформу:",
+        reply_markup=kb, parse_mode="HTML")
+    await call.answer()
+
+
+@router.callback_query(F.data.startswith("tadd:"))
+async def treasury_add_platform(call: types.CallbackQuery, state: FSMContext):
+    if not is_admin(call.from_user.id):
+        return await call.answer("Нет доступа", show_alert=True)
+    platform = call.data.split(":")[1]
+    await state.update_data(treasury_platform=platform, treasury_action="add")
+    name = "CryptoBot" if platform == "crypto" else "xRocket"
+    await call.message.edit_text(
+        f"➕ <b>Пополнение казны ({name})</b>\n\n"
+        f"Введи сумму в USDT (например: 100):",
+        parse_mode="HTML")
+    await state.set_state(AdminState.waiting_treasury_amt)
+    await call.answer()
+
+
+@router.callback_query(F.data == "admin_treasury_set")
+async def treasury_set(call: types.CallbackQuery, state: FSMContext):
+    if not is_admin(call.from_user.id):
+        return await call.answer("Нет доступа", show_alert=True)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🏦 CryptoBot", callback_data="tset:crypto",
+                              style="primary")],
+        [InlineKeyboardButton(text="ℹ️ xRocket", callback_data="tset:xrocket",
+                              style="primary")],
+        [InlineKeyboardButton(text="🔙 Отмена", callback_data="admin_treasury",
+                              style="danger")],
+    ])
+    await call.message.edit_text(
+        "✏️ <b>Установить баланс казны</b>\n\nВыберите платформу:",
+        reply_markup=kb, parse_mode="HTML")
+    await call.answer()
+
+
+@router.callback_query(F.data.startswith("tset:"))
+async def treasury_set_platform(call: types.CallbackQuery, state: FSMContext):
+    if not is_admin(call.from_user.id):
+        return await call.answer("Нет доступа", show_alert=True)
+    platform = call.data.split(":")[1]
+    await state.update_data(treasury_platform=platform, treasury_action="set")
+    name = "CryptoBot" if platform == "crypto" else "xRocket"
+    await call.message.edit_text(
+        f"✏️ <b>Установка баланса ({name})</b>\n\n"
+        f"Введи точную сумму USDT (например: 250.5):",
+        parse_mode="HTML")
+    await state.set_state(AdminState.waiting_treasury_amt)
+    await call.answer()
+
+
+@router.message(AdminState.waiting_treasury_amt)
+async def treasury_amount(message: types.Message, state: FSMContext):
+    if not is_admin(message.from_user.id):
+        return
+    try:
+        amount = float(message.text.replace(",", ".").strip())
+        if amount < 0:
+            raise ValueError
+    except Exception:
+        return await message.answer("❌ Введи положительное число")
+
+    data = await state.get_data()
+    platform = data.get("treasury_platform")
+    action = data.get("treasury_action")
+    name = "CryptoBot" if platform == "crypto" else "xRocket"
+
+    if action == "add":
+        db.add_treasury(platform, amount)
+        verb = f"+{amount:.2f}"
+    else:
+        db.set_treasury(platform, amount)
+        verb = f"={amount:.2f}"
+
+    t = db.get_treasury_manual()
+    total = t["crypto"] + t["xrocket"]
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💰 Казна", callback_data="admin_treasury",
+                              style="success")],
+    ])
+    await message.answer(
+        f"✅ <b>{name}: {verb} USDT</b>\n\n"
+        f"🏦 CryptoBot: <b>{t['crypto']:.2f}</b>\n"
+        f"ℹ️ xRocket: <b>{t['xrocket']:.2f}</b>\n"
+        f"📊 Всего: <b>{total:.2f}</b>",
+        reply_markup=kb, parse_mode="HTML")
+    await state.clear()
+
+
+# ============================================================
 #                    ПРОМОКОД
 # ============================================================
 @router.callback_query(F.data == "admin_promo")
@@ -205,9 +373,7 @@ async def do_broadcast(message: types.Message, state: FSMContext):
             failed += 1
         if i % 20 == 0:
             try:
-                await status.edit_text(
-                    f"📢 {i}/{len(users)} | ✅{sent} ❌{failed}"
-                )
+                await status.edit_text(f"📢 {i}/{len(users)} | ✅{sent} ❌{failed}")
             except Exception:
                 pass
 
@@ -266,10 +432,12 @@ async def admin_uid(message: types.Message, state: FSMContext):
     if action == "ban":
         if db.is_banned(target):
             db.unban_user(target)
-            await message.answer(f"✅ <code>{target}</code> разбанен.", parse_mode="HTML")
+            await message.answer(f"✅ <code>{target}</code> разбанен.",
+                                 parse_mode="HTML")
         else:
             db.ban_user(target)
-            await message.answer(f"🚫 <code>{target}</code> забанен.", parse_mode="HTML")
+            await message.answer(f"🚫 <code>{target}</code> забанен.",
+                                 parse_mode="HTML")
         await state.clear()
         return
 
@@ -337,66 +505,8 @@ async def admin_users(call: types.CallbackQuery):
                  f"   💵 {bal:.2f} | 📉 {wag:.2f}\n")
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_refresh")]
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_refresh",
+                              style="danger")]
     ])
     await call.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
     await call.answer()
-
-# ============================================================
-#              КАЗНА
-# ============================================================
-@router.callback_query(F.data == "admin_treasury")
-async def admin_treasury(call: types.CallbackQuery):
-    if not is_admin(call.from_user.id):
-        return await call.answer("Нет доступа", show_alert=True)
-
-    await call.answer("⏳ Считаю казну...", show_alert=False)
-
-    from utils.treasury import get_treasury
-    try:
-        t = await get_treasury()
-    except Exception as e:
-        return await call.message.answer(f"❌ Ошибка: {e}")
-
-    # Определяем статус резерва
-    if t["reserve"] >= 0:
-        status = "🟢 <b>Казна в плюсе</b>"
-    else:
-        status = "🔴 <b>ВНИМАНИЕ: резерва не хватает!</b>"
-
-    text = (
-        f"💰 <b>КАЗНА КАЗИНО</b>\n\n"
-
-        f"<b>💳 Платёжные системы:</b>\n"
-        f"  🏦 CryptoBot: <b>{t['crypto']:.2f}</b> USDT\n"
-        f"  ℹ️ xRocket: <b>{t['xrocket']:.2f}</b> USDT\n"
-        f"  📊 Всего на платёжках: <b>{t['total_on_platforms']:.2f}</b> USDT\n\n"
-
-        f"<b>👥 Обязательства перед юзерами:</b>\n"
-        f"  💼 На балансах: <b>{t['users_balance']:.2f}</b> USDT\n\n"
-
-        f"<b>📈 Статистика:</b>\n"
-        f"  ⬇️ Пополнено: <b>{t['deposited']:.2f}</b>\n"
-        f"  ⬆️ Выведено: <b>{t['withdrawn']:.2f}</b>\n"
-        f"  📉 Оборот: <b>{t['wagered']:.2f}</b>\n"
-        f"  💸 Выиграно юзерам: <b>{t['won']:.2f}</b>\n\n"
-
-        f"<b>💵 Итог:</b>\n"
-        f"  💰 Профит казино: <b>{t['profit']:.2f}</b> USDT\n"
-        f"  🏦 Резерв (платёжки − обязательства): "
-        f"<b>{t['reserve']:.2f}</b> USDT\n\n"
-
-        f"{status}"
-    )
-
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔄 Обновить", callback_data="admin_treasury",
-                              style="success")],
-        [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_refresh",
-                              style="danger")],
-    ])
-
-    try:
-        await call.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
-    except Exception:
-        await call.message.answer(text, reply_markup=kb, parse_mode="HTML")

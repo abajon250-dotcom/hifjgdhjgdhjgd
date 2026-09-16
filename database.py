@@ -112,6 +112,20 @@ class Database:
             )
         """)
 
+        # ---------- Казна (ручной баланс) ----------
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS treasury (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                crypto_manual REAL DEFAULT 0.0,
+                xrocket_manual REAL DEFAULT 0.0,
+                updated_at INTEGER DEFAULT 0
+            )
+        """)
+        self.cursor.execute(
+            "INSERT OR IGNORE INTO treasury (id, crypto_manual, xrocket_manual) "
+            "VALUES (1, 0.0, 0.0)"
+        )
+
         self.conn.commit()
 
         # ---------- Миграции ----------
@@ -187,10 +201,8 @@ class Database:
 
     def set_privacy(self, uid, private):
         self.get_user(uid)
-        self.cursor.execute(
-            "UPDATE users SET is_private=? WHERE user_id=?",
-            (1 if private else 0, uid)
-        )
+        self.cursor.execute("UPDATE users SET is_private=? WHERE user_id=?",
+                            (1 if private else 0, uid))
         self.conn.commit()
 
     def is_private(self, uid):
@@ -209,7 +221,8 @@ class Database:
 
     def set_bet(self, uid, bet):
         self.get_user(uid)
-        self.cursor.execute("UPDATE users SET bet=? WHERE user_id=?", (float(bet), uid))
+        self.cursor.execute("UPDATE users SET bet=? WHERE user_id=?",
+                            (float(bet), uid))
         self.conn.commit()
 
     def get_bet_currency(self, uid):
@@ -220,7 +233,8 @@ class Database:
 
     def set_bet_currency(self, uid, cur):
         self.get_user(uid)
-        self.cursor.execute("UPDATE users SET bet_currency=? WHERE user_id=?", (cur, uid))
+        self.cursor.execute("UPDATE users SET bet_currency=? WHERE user_id=?",
+                            (cur, uid))
         self.conn.commit()
 
     # ============================================================
@@ -234,16 +248,14 @@ class Database:
 
     def update_balance(self, uid, amount):
         self.get_user(uid)
-        self.cursor.execute(
-            "UPDATE users SET balance=balance+? WHERE user_id=?", (amount, uid)
-        )
+        self.cursor.execute("UPDATE users SET balance=balance+? WHERE user_id=?",
+                            (amount, uid))
         self.conn.commit()
 
     def set_balance(self, uid, amount):
         self.get_user(uid)
-        self.cursor.execute(
-            "UPDATE users SET balance=? WHERE user_id=?", (amount, uid)
-        )
+        self.cursor.execute("UPDATE users SET balance=? WHERE user_id=?",
+                            (amount, uid))
         self.conn.commit()
 
     def has_enough(self, uid, amount):
@@ -258,10 +270,8 @@ class Database:
 
     def update_stars_balance(self, uid, amount):
         self.get_user(uid)
-        self.cursor.execute(
-            "UPDATE users SET stars_balance=stars_balance+? WHERE user_id=?",
-            (amount, uid)
-        )
+        self.cursor.execute("UPDATE users SET stars_balance=stars_balance+? "
+                            "WHERE user_id=?", (amount, uid))
         self.conn.commit()
 
     def has_enough_stars(self, uid, amount):
@@ -285,10 +295,8 @@ class Database:
 
     def update_bonus_balance(self, uid, amount):
         self.get_user(uid)
-        self.cursor.execute(
-            "UPDATE users SET bonus_balance=bonus_balance+? WHERE user_id=?",
-            (amount, uid)
-        )
+        self.cursor.execute("UPDATE users SET bonus_balance=bonus_balance+? "
+                            "WHERE user_id=?", (amount, uid))
         self.conn.commit()
 
     # ---------- Реферальный ----------
@@ -303,49 +311,38 @@ class Database:
     # ============================================================
     def add_wager(self, uid, amount):
         self.get_user(uid)
-        self.cursor.execute(
-            "UPDATE users SET total_wagered=total_wagered+? WHERE user_id=?",
-            (amount, uid)
-        )
+        self.cursor.execute("UPDATE users SET total_wagered=total_wagered+? "
+                            "WHERE user_id=?", (amount, uid))
         self.conn.commit()
 
     def add_win(self, uid, amount):
         self.get_user(uid)
-        self.cursor.execute(
-            "UPDATE users SET total_won=total_won+? WHERE user_id=?",
-            (amount, uid)
-        )
+        self.cursor.execute("UPDATE users SET total_won=total_won+? WHERE user_id=?",
+                            (amount, uid))
         self.conn.commit()
 
     def add_loss(self, uid, amount):
         self.get_user(uid)
-        self.cursor.execute(
-            "UPDATE users SET total_lost=total_lost+? WHERE user_id=?",
-            (amount, uid)
-        )
+        self.cursor.execute("UPDATE users SET total_lost=total_lost+? WHERE user_id=?",
+                            (amount, uid))
         self.conn.commit()
 
     def add_deposit(self, uid, amount):
         self.get_user(uid)
-        self.cursor.execute(
-            "UPDATE users SET total_deposited=total_deposited+? WHERE user_id=?",
-            (amount, uid)
-        )
+        self.cursor.execute("UPDATE users SET total_deposited=total_deposited+? "
+                            "WHERE user_id=?", (amount, uid))
         self.conn.commit()
 
     def add_withdraw(self, uid, amount):
         self.get_user(uid)
-        self.cursor.execute(
-            "UPDATE users SET total_withdrawn=total_withdrawn+? WHERE user_id=?",
-            (amount, uid)
-        )
+        self.cursor.execute("UPDATE users SET total_withdrawn=total_withdrawn+? "
+                            "WHERE user_id=?", (amount, uid))
         self.conn.commit()
 
     def inc_games(self, uid):
         self.get_user(uid)
-        self.cursor.execute(
-            "UPDATE users SET games_played=games_played+1 WHERE user_id=?", (uid,)
-        )
+        self.cursor.execute("UPDATE users SET games_played=games_played+1 "
+                            "WHERE user_id=?", (uid,))
         self.conn.commit()
 
     def get_stats(self, uid):
@@ -353,22 +350,14 @@ class Database:
         self.cursor.execute(
             "SELECT balance, stars_balance, total_wagered, total_won, total_lost, "
             "total_deposited, total_withdrawn, games_played, days_registered, "
-            "invited_count, earned_ref FROM users WHERE user_id=?",
-            (uid,)
+            "invited_count, earned_ref FROM users WHERE user_id=?", (uid,)
         )
         r = self.cursor.fetchone()
         return {
-            "balance": r[0],
-            "stars_balance": r[1],
-            "total_wagered": r[2],
-            "total_won": r[3],
-            "total_lost": r[4],
-            "total_deposited": r[5],
-            "total_withdrawn": r[6],
-            "games_played": r[7],
-            "days_registered": r[8],
-            "invited_count": r[9],
-            "earned_ref": r[10],
+            "balance": r[0], "stars_balance": r[1], "total_wagered": r[2],
+            "total_won": r[3], "total_lost": r[4], "total_deposited": r[5],
+            "total_withdrawn": r[6], "games_played": r[7],
+            "days_registered": r[8], "invited_count": r[9], "earned_ref": r[10],
         }
 
     # ============================================================
@@ -377,7 +366,6 @@ class Database:
     def get_vip_info(self, uid):
         s = self.get_stats(uid)
         turnover = s["total_wagered"]
-
         levels = [
             (0, "None", "⭐"),
             (5000, "Bronze", "🥉"),
@@ -387,32 +375,25 @@ class Database:
             (500000, "Diamond", "💠"),
             (1000000, "MAX", "👑"),
         ]
-
         cur = levels[0]
         nxt = levels[1]
         for i, lvl in enumerate(levels):
             if turnover >= lvl[0]:
                 cur = lvl
                 nxt = levels[i + 1] if i + 1 < len(levels) else None
-
         if nxt:
             progress = (turnover - cur[0]) / (nxt[0] - cur[0]) * 100
         else:
             progress = 100.0
-
-        return {
-            "current": cur,
-            "next": nxt,
-            "progress": min(progress, 100.0),
-        }
+        return {"current": cur, "next": nxt, "progress": min(progress, 100.0)}
 
     # ============================================================
     #                       ИСТОРИЯ ИГР
     # ============================================================
     def add_game(self, uid, gt, bet, win, mult, result=""):
         self.cursor.execute(
-            "INSERT INTO games (user_id, game_type, bet, win, multiplier, result, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO games (user_id, game_type, bet, win, multiplier, result, "
+            "created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (uid, gt, bet, win, mult, result, int(time.time()))
         )
         self.conn.commit()
@@ -420,32 +401,18 @@ class Database:
     def get_last_games(self, uid, limit=10):
         self.cursor.execute(
             "SELECT game_type, bet, win, multiplier, created_at FROM games "
-            "WHERE user_id=? ORDER BY id DESC LIMIT ?",
-            (uid, limit)
+            "WHERE user_id=? ORDER BY id DESC LIMIT ?", (uid, limit)
         )
         return self.cursor.fetchall()
 
-    # ============================================================
-    #              СТАТИСТИКА ПО ИГРАМ (для юзера)
-    # ============================================================
     def get_games_stats(self, uid):
-        """
-        Возвращает словарь по game_type:
-        {
-          "dice_1": {"games": N, "wins": N, "losses": N,
-                     "won": SUM(win при win), "staked": SUM(bet),
-                     "profit": won - staked},
-          ...
-        }
-        """
         self.cursor.execute(
             "SELECT game_type, COUNT(*), "
             "SUM(CASE WHEN result='win' THEN 1 ELSE 0 END), "
             "SUM(CASE WHEN result IN ('lose','penalty') THEN 1 ELSE 0 END), "
             "COALESCE(SUM(CASE WHEN result='win' THEN win ELSE 0 END), 0), "
             "COALESCE(SUM(bet), 0) "
-            "FROM games WHERE user_id=? GROUP BY game_type",
-            (uid,)
+            "FROM games WHERE user_id=? GROUP BY game_type", (uid,)
         )
         out = {}
         for row in self.cursor.fetchall():
@@ -474,9 +441,8 @@ class Database:
         return self.cursor.lastrowid
 
     def update_transaction_status(self, tx_id, status):
-        self.cursor.execute(
-            "UPDATE transactions SET status=? WHERE id=?", (status, tx_id)
-        )
+        self.cursor.execute("UPDATE transactions SET status=? WHERE id=?",
+                            (status, tx_id))
         self.conn.commit()
 
     def get_transactions(self, uid, limit=10):
@@ -493,16 +459,14 @@ class Database:
     def add_check(self, uid, amount, url):
         self.cursor.execute(
             "INSERT INTO checks (user_id, amount, check_url, created_at) "
-            "VALUES (?, ?, ?, ?)",
-            (uid, amount, url, int(time.time()))
+            "VALUES (?, ?, ?, ?)", (uid, amount, url, int(time.time()))
         )
         self.conn.commit()
 
     def get_checks(self, uid, limit=10):
         self.cursor.execute(
             "SELECT amount, check_url, is_activated, created_at FROM checks "
-            "WHERE user_id=? ORDER BY id DESC LIMIT ?",
-            (uid, limit)
+            "WHERE user_id=? ORDER BY id DESC LIMIT ?", (uid, limit)
         )
         return self.cursor.fetchall()
 
@@ -512,33 +476,25 @@ class Database:
     def create_promo(self, code, amount, uses=1):
         self.cursor.execute(
             "INSERT OR REPLACE INTO promocodes (code, amount, uses_left, created_at) "
-            "VALUES (?, ?, ?, ?)",
-            (code, amount, uses, int(time.time()))
+            "VALUES (?, ?, ?, ?)", (code, amount, uses, int(time.time()))
         )
         self.conn.commit()
 
     def use_promo(self, uid, code):
-        self.cursor.execute(
-            "SELECT amount, uses_left FROM promocodes WHERE code=?", (code,)
-        )
+        self.cursor.execute("SELECT amount, uses_left FROM promocodes WHERE code=?",
+                            (code,))
         r = self.cursor.fetchone()
         if not r or r[1] <= 0:
             return 0.0
-
-        self.cursor.execute(
-            "SELECT 1 FROM promo_uses WHERE user_id=? AND code=?", (uid, code)
-        )
+        self.cursor.execute("SELECT 1 FROM promo_uses WHERE user_id=? AND code=?",
+                            (uid, code))
         if self.cursor.fetchone():
             return 0.0
-
         amount = r[0]
-        self.cursor.execute(
-            "UPDATE promocodes SET uses_left=uses_left-1 WHERE code=?", (code,)
-        )
-        self.cursor.execute(
-            "INSERT INTO promo_uses (user_id, code, created_at) VALUES (?, ?, ?)",
-            (uid, code, int(time.time()))
-        )
+        self.cursor.execute("UPDATE promocodes SET uses_left=uses_left-1 "
+                            "WHERE code=?", (code,))
+        self.cursor.execute("INSERT INTO promo_uses (user_id, code, created_at) "
+                            "VALUES (?, ?, ?)", (uid, code, int(time.time())))
         self.update_balance(uid, amount)
         self.conn.commit()
         return amount
@@ -564,18 +520,13 @@ class Database:
     # ============================================================
     def set_referrer(self, uid, ref_id):
         self.get_user(uid)
-        self.cursor.execute(
-            "SELECT referrer_id FROM users WHERE user_id=?", (uid,)
-        )
+        self.cursor.execute("SELECT referrer_id FROM users WHERE user_id=?", (uid,))
         r = self.cursor.fetchone()
         if r and r[0] is None and uid != ref_id:
-            self.cursor.execute(
-                "UPDATE users SET referrer_id=? WHERE user_id=?", (ref_id, uid)
-            )
-            self.cursor.execute(
-                "UPDATE users SET invited_count=invited_count+1 WHERE user_id=?",
-                (ref_id,)
-            )
+            self.cursor.execute("UPDATE users SET referrer_id=? WHERE user_id=?",
+                                (ref_id, uid))
+            self.cursor.execute("UPDATE users SET invited_count=invited_count+1 "
+                                "WHERE user_id=?", (ref_id,))
             self.conn.commit()
             return True
         return False
@@ -584,8 +535,7 @@ class Database:
         self.get_user(ref_id)
         self.cursor.execute(
             "UPDATE users SET earned_ref=earned_ref+?, balance=balance+? "
-            "WHERE user_id=?",
-            (amount, amount, ref_id)
+            "WHERE user_id=?", (amount, amount, ref_id)
         )
         self.conn.commit()
 
@@ -690,6 +640,47 @@ class Database:
             (day_start, limit)
         )
         return self.cursor.fetchall()
+
+    # ============================================================
+    #                       КАЗНА (ручная)
+    # ============================================================
+    def get_treasury_manual(self):
+        self.cursor.execute(
+            "SELECT crypto_manual, xrocket_manual, updated_at FROM treasury WHERE id=1"
+        )
+        r = self.cursor.fetchone()
+        if not r:
+            return {"crypto": 0.0, "xrocket": 0.0, "updated_at": 0}
+        return {"crypto": r[0], "xrocket": r[1], "updated_at": r[2]}
+
+    def add_treasury(self, platform, amount):
+        """platform: 'crypto' или 'xrocket'."""
+        self.get_treasury_manual()
+        col = "crypto_manual" if platform == "crypto" else "xrocket_manual"
+        self.cursor.execute(
+            f"UPDATE treasury SET {col} = {col} + ?, updated_at = ? WHERE id=1",
+            (amount, int(time.time()))
+        )
+        self.conn.commit()
+
+    def set_treasury(self, platform, amount):
+        self.get_treasury_manual()
+        col = "crypto_manual" if platform == "crypto" else "xrocket_manual"
+        self.cursor.execute(
+            f"UPDATE treasury SET {col} = ?, updated_at = ? WHERE id=1",
+            (amount, int(time.time()))
+        )
+        self.conn.commit()
+
+    def subtract_treasury(self, platform, amount):
+        """Списать из казны (при выводе)."""
+        self.get_treasury_manual()
+        col = "crypto_manual" if platform == "crypto" else "xrocket_manual"
+        self.cursor.execute(
+            f"UPDATE treasury SET {col} = MAX(0, {col} - ?), updated_at = ? WHERE id=1",
+            (amount, int(time.time()))
+        )
+        self.conn.commit()
 
     # ============================================================
     #                        СЛУЖЕБНОЕ
