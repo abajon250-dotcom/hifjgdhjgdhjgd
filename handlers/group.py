@@ -1,4 +1,5 @@
 import asyncio
+import os
 from aiogram import Router, F, types
 from aiogram.filters import Command
 from aiogram.enums import ChatType
@@ -8,15 +9,17 @@ from math_engine import calc_1_dice
 from utils.emoji import DOLLAR
 
 router = Router()
+ADMIN_ID = int(os.getenv("ADMIN_ID", 0))
 
-# Только для групповых чатов
+# Только групповые чаты
 GROUP_FILTER = F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP})
 
 
 # ============================================================
-#              БАЗОВЫЕ КОМАНДЫ В ЧАТЕ
+#              БАЛАНС (словом и /командой)
 # ============================================================
 @router.message(GROUP_FILTER, Command("balance", "bal", "баланс", "бал"))
+@router.message(GROUP_FILTER, F.text.regexp(r"(?i)^(баланс|бал)$"))
 async def group_balance(message: types.Message):
     if not message.from_user:
         return
@@ -29,7 +32,11 @@ async def group_balance(message: types.Message):
     )
 
 
+# ============================================================
+#              ТОП
+# ============================================================
 @router.message(GROUP_FILTER, Command("top", "топ"))
+@router.message(GROUP_FILTER, F.text.regexp(r"(?i)^топ$"))
 async def group_top(message: types.Message):
     top = db.get_top_wagered(5)
     if not top:
@@ -41,7 +48,11 @@ async def group_top(message: types.Message):
     await message.reply(text, parse_mode="HTML", disable_web_page_preview=True)
 
 
+# ============================================================
+#              СТАТИСТИКА
+# ============================================================
 @router.message(GROUP_FILTER, Command("stats", "стата", "профиль", "статистика"))
+@router.message(GROUP_FILTER, F.text.regexp(r"(?i)^(стата|профиль|статистика)$"))
 async def group_stats(message: types.Message):
     if not message.from_user:
         return
@@ -55,23 +66,28 @@ async def group_stats(message: types.Message):
     )
 
 
+# ============================================================
+#              ПОМОЩЬ
+# ============================================================
 @router.message(GROUP_FILTER, Command("help", "помощь", "хелп"))
+@router.message(GROUP_FILTER, F.text.regexp(r"(?i)^(помощь|хелп)$"))
 async def group_help(message: types.Message):
     await message.reply(
         "⚙️ <b>Команды в чате:</b>\n"
-        "• /баланс — мой баланс\n"
-        "• /топ — топ-5 игроков\n"
-        "• /стата — моя статистика\n"
-        "• /куб — играть в кубик\n"
-        "• /помощь — эта справка",
+        "• <code>баланс</code> — мой баланс\n"
+        "• <code>топ</code> — топ-5 игроков\n"
+        "• <code>стата</code> — моя статистика\n"
+        "• <code>куб</code> — играть в кубик\n"
+        "• <code>помощь</code> — эта справка",
         parse_mode="HTML"
     )
 
 
 # ============================================================
-#              ИГРА В КУБИК ПРЯМО В ЧАТЕ
+#              ИГРА В КУБИК
 # ============================================================
 @router.message(GROUP_FILTER, Command("dice", "куб", "кубик", "дайс"))
+@router.message(GROUP_FILTER, F.text.regexp(r"(?i)^(куб|кубик|дайс)$"))
 async def group_dice(message: types.Message):
     if not message.from_user:
         return
@@ -86,15 +102,15 @@ async def group_dice(message: types.Message):
         )
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Чёт (x1.9)", callback_data="g:d1:even",
+        [InlineKeyboardButton(text="Чёт (x1.9)", callback_data=f"g:d1:even:{uid}",
                               style="primary"),
-         InlineKeyboardButton(text="Нечёт (x1.9)", callback_data="g:d1:odd",
+         InlineKeyboardButton(text="Нечёт (x1.9)", callback_data=f"g:d1:odd:{uid}",
                               style="primary")],
-        [InlineKeyboardButton(text="1-3 (x1.9)", callback_data="g:d1:1-3",
+        [InlineKeyboardButton(text="1-3 (x1.9)", callback_data=f"g:d1:1-3:{uid}",
                               style="primary"),
-         InlineKeyboardButton(text="4-6 (x1.9)", callback_data="g:d1:4-6",
+         InlineKeyboardButton(text="4-6 (x1.9)", callback_data=f"g:d1:4-6:{uid}",
                               style="primary")],
-        [InlineKeyboardButton(text="Отмена", callback_data="g:cancel",
+        [InlineKeyboardButton(text="Отмена", callback_data=f"g:cancel:{uid}",
                               style="danger")],
     ])
     await message.reply(
@@ -105,7 +121,7 @@ async def group_dice(message: types.Message):
     )
 
 
-@router.callback_query(F.data == "g:cancel")
+@router.callback_query(F.data.startswith("g:cancel:"))
 async def group_dice_cancel(call: types.CallbackQuery):
     try:
         await call.message.delete()
@@ -116,7 +132,14 @@ async def group_dice_cancel(call: types.CallbackQuery):
 
 @router.callback_query(F.data.startswith("g:d1:"))
 async def group_dice_play(call: types.CallbackQuery):
-    choice = call.data.split(":")[2]
+    parts = call.data.split(":")
+    choice = parts[2]
+    owner_uid = int(parts[3])
+
+    # Играет только тот, кто нажал /куб
+    if call.from_user.id != owner_uid:
+        return await call.answer("❌ Это не твоя игра!", show_alert=True)
+
     uid = call.from_user.id
     bet = db.get_bet(uid)
 
