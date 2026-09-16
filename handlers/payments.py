@@ -249,21 +249,38 @@ async def check_payment(call: types.CallbackQuery):
     if provider == "xrocket":
         if not invoice_id:
             return await call.answer("❌ Счёт не найден.", show_alert=True)
-        headers = {"Authorization": f"Bearer {XROCKET_TOKEN}",
-                   "Accept": "application/json"}
+
+        headers = {
+            "Authorization": f"Bearer {XROCKET_TOKEN}",
+            "Accept": "application/json",
+        }
+        # ✅ ПРАВИЛЬНЫЙ URL: /invoices?id=...
+        url = f"{XROCKET_API}/invoices"
         try:
             async with aiohttp.ClientSession() as s:
-                async with s.get(f"{XROCKET_API}/invoices/{invoice_id}",
-                                 headers=headers) as r:
+                async with s.get(url, headers=headers,
+                                 params={"id": invoice_id}) as r:
                     status_code = r.status
                     data = await r.json()
-        except Exception:
-            return await call.answer("❌ Сервис недоступен.", show_alert=True)
-        if status_code == 404:
+        except Exception as e:
+            return await call.answer(f"❌ Сеть: {e}", show_alert=True)
+
+        if status_code != 200:
+            return await call.answer(
+                f"❌ Не удалось проверить счёт (код {status_code})",
+                show_alert=True
+            )
+
+        # Ответ: {"items": [{...}]}
+        items = data.get("items", []) if isinstance(data, dict) else []
+        if not items:
             return await call.answer("❌ Счёт не найден.", show_alert=True)
-        status = (data or {}).get("status", "")
+
+        inv = items[0]
+        status = inv.get("status", "")
+
         if status in ("paid", "success", "completed"):
-            credited = float(data.get("priceAmount", 0))
+            credited = float(inv.get("priceAmount", 0))
             db.update_balance(uid, credited)
             db.add_deposit(uid, credited)
             db.add_transaction(uid, "deposit", "xrocket",
@@ -275,7 +292,16 @@ async def check_payment(call: types.CallbackQuery):
                 parse_mode="HTML"
             )
             return await call.answer()
-        return await call.answer(f"❌ Счёт не оплачен.", show_alert=True)
+
+        # Статус не paid — сообщаем какой именно
+        status_ru = {
+            "active": "ожидает оплаты",
+            "pending": "ожидает оплаты",
+            "expired": "срок истёк",
+            "cancelled": "отменён",
+            "failed": "ошибка оплаты",
+        }.get(status, status or "не оплачен")
+        return await call.answer(f"⏳ Счёт: {status_ru}", show_alert=True)
 
 
 @router.pre_checkout_query()
