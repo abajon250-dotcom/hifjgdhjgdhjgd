@@ -156,7 +156,7 @@ async def _process_deposit(call, method: str, amount: float):
             "payCurrencies": ["USDT"],
             "description": f"Пополнение баланса",
             "clientInvoiceId": f"dep_{uid}_{int(amount * 100)}_{int(time.time())}",
-            "expiresIn": 900,
+            "expiresIn": 900000,
             "customer": {"telegramId": str(uid)},
         }
         try:
