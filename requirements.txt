@@ -1,0 +1,5 @@
+aiogram==3.x
+aiosqlite
+aiocryptopay
+aiohttp
+python-dotenv
