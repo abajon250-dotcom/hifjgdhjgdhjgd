@@ -66,7 +66,7 @@ def _wallet_text(uid):
 
 
 # ============================================================
-#              /start с парсингом payload (промокод / реф)
+#              /start + промокод через ссылку
 # ============================================================
 @router.message(Command("start"), PVT)
 async def cmd_start(message: types.Message):
@@ -74,32 +74,59 @@ async def cmd_start(message: types.Message):
     if db.is_banned(uid):
         return await message.answer("🚫 Вы забанены.")
 
-    not_sub = await check_subscription(message.bot, uid)
-    if not_sub and uid != ADMIN_ID:
-        return await message.answer(subscribe_text(),
-                                    reply_markup=subscribe_kb(),
-                                    parse_mode="HTML")
-
+    # Сначала обрабатываем payload (промокод / реф)
     args = message.text.split()
     if len(args) > 1:
         payload = args[1]
+
+        # ---------- РЕФЕРАЛКА ----------
         if payload.startswith("ref"):
             try:
                 db.set_referrer(uid, int(payload.replace("ref", "")))
             except Exception:
                 pass
+
+        # ---------- ПРОМОКОД ЧЕРЕЗ ССЫЛКУ ----------
         elif payload.startswith("promo_") or payload.startswith("p_"):
             code = payload.split("_", 1)[1].strip().upper()
-            amount = db.use_promo(uid, code)
-            if amount > 0:
-                await message.answer(
-                    f"🎁 <b>Промокод активирован!</b>\n\n"
-                    f"{DOLLAR} Зачислено: <b>+{amount:.2f}</b>",
-                    parse_mode="HTML")
-            else:
+            info = db.get_promo_info(code)
+
+            if not info:
                 await message.answer(
                     f"❌ Промокод <code>{code}</code> не найден.",
                     parse_mode="HTML")
+            elif info["uses_left"] <= 0:
+                await message.answer(
+                    f"❌ Промокод <code>{code}</code> закончился.",
+                    parse_mode="HTML")
+            else:
+                wager_line = ""
+                if info["required_wager"] > 0:
+                    wager_line = (f"📊 Требуется оборот: "
+                                  f"<b>{info['required_wager']:.2f}</b> USDT\n")
+                kb = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(
+                        text="🎁 Активировать промокод",
+                        callback_data=f"activate_promo:{code}",
+                        style="success")],
+                ])
+                await message.answer(
+                    f"🎁 <b>Промокод найден!</b>\n\n"
+                    f"💰 Сумма: <b>{info['amount']:.2f}</b> USDT\n"
+                    f"{wager_line}"
+                    f"\n<b>Условия:</b>\n"
+                    f"• Подписка на все каналы\n"
+                    + (f"• Оборот от <b>{info['required_wager']:.0f}</b> USDT\n"
+                       if info["required_wager"] > 0 else "")
+                    + f"\nНажми кнопку ниже 👇",
+                    reply_markup=kb, parse_mode="HTML")
+
+    # Потом проверка подписки
+    not_sub = await check_subscription(message.bot, uid)
+    if not_sub and uid != ADMIN_ID:
+        return await message.answer(subscribe_text(),
+                                    reply_markup=subscribe_kb(),
+                                    parse_mode="HTML")
 
     db.get_user(uid)
     db.set_username(uid, message.from_user.username or "Игрок")
@@ -110,6 +137,54 @@ async def cmd_start(message: types.Message):
     await safe_answer(message, _main_text(uid, message.from_user.full_name),
                       reply_markup=main_menu_inline(is_admin),
                       parse_mode="HTML")
+
+
+# ============================================================
+#              АКТИВАЦИЯ ПРОМОКОДА (кнопка)
+# ============================================================
+@router.callback_query(F.data.startswith("activate_promo:"))
+async def activate_promo(call: types.CallbackQuery):
+    code = call.data.split(":", 1)[1].upper()
+    uid = call.from_user.id
+
+    # 1) Проверка подписки
+    not_sub = await check_subscription(call.bot, uid)
+    if not_sub and uid != ADMIN_ID:
+        await call.answer("🔒 Сначала подпишись на каналы!", show_alert=True)
+        return await call.message.answer(
+            subscribe_text(),
+            reply_markup=subscribe_kb(),
+            parse_mode="HTML")
+
+    # 2) Проверка промокода
+    info = db.get_promo_info(code)
+    if not info:
+        return await call.answer("❌ Промокод не найден.", show_alert=True)
+    if info["uses_left"] <= 0:
+        return await call.answer("❌ Промокод закончился.", show_alert=True)
+
+    # 3) Проверка оборота
+    s = db.get_stats(uid)
+    if s["total_wagered"] < info["required_wager"]:
+        need = info["required_wager"] - s["total_wagered"]
+        return await call.answer(
+            f"📊 Нужен оборот {info['required_wager']:.2f} USDT\n"
+            f"У тебя: {s['total_wagered']:.2f}\n"
+            f"Осталось: {need:.2f}",
+            show_alert=True)
+
+    # 4) Активация
+    amount = db.use_promo(uid, code)
+    if amount > 0:
+        await call.message.edit_text(
+            f"🎁 <b>Промокод активирован!</b>\n\n"
+            f"💰 Зачислено: <b>+{amount:.2f}</b> USDT\n"
+            f"💼 Баланс: <b>{db.get_balance(uid):.2f}</b> USDT",
+            parse_mode="HTML")
+        await call.answer("✅ Промокод активирован!")
+    else:
+        await call.answer("❌ Не удалось активировать (уже использован).",
+                          show_alert=True)
 
 
 @router.callback_query(F.data == "check_sub")

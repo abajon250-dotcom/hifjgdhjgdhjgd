@@ -86,6 +86,26 @@ async def cmd_wager(message: types.Message):
     await message.answer(text, reply_markup=back_menu(), parse_mode="HTML")
 
 
+@router.message(F.text.regexp(r"(?i)^/reserve$"))
+async def cmd_reserve(message: types.Message):
+    from utils.treasury import get_full_treasury
+    try:
+        t = await get_full_treasury()
+    except Exception as e:
+        return await message.answer(f"❌ {e}")
+
+    lines = ["💼 <b>Балансы казино</b>\n"]
+    lines.append(f"💎 CryptoBot: <b>{t['crypto'].get('USDT', 0):.2f}</b> USDT")
+    lines.append(f"🚀 xRocket: <b>{t['xrocket'].get('USDT', 0):.2f}</b> USDT")
+    lines.append(f"⭐ Stars: <b>{t['stars_manual']:.2f}</b>")
+    lines.append(f"🔥 Hot: <b>{t['hot_manual']:.2f}</b>")
+    lines.append(f"❄️ Cold: <b>{t['cold_manual']:.2f}</b>")
+    lines.append(f"\n💰 <b>Всего:</b> <b>{t['total_usdt']:.2f}</b> USDT")
+    lines.append(f"👥 Обязательства: <b>{t['users_balance']:.2f}</b>")
+    lines.append(f"{'🟢' if t['reserve'] >= 0 else '🔴'} <b>Резерв:</b> <b>{t['reserve']:.2f}</b>")
+    await message.answer("\n".join(lines), parse_mode="HTML")
+
+
 @router.message(F.text.regexp(r"(?i)^(помощь|хелп|help|h)$"))
 async def cmd_help(message: types.Message):
     bet = get_bet(message.from_user.id)
@@ -119,7 +139,6 @@ async def cmd_balance(message: types.Message):
     bal = db.get_balance(uid)
     bet = db.get_bet(uid)
     s = db.get_stats(uid)
-
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Пополнить", callback_data="deposit",
                               icon_custom_emoji_id="5445355530111437729",
@@ -200,12 +219,10 @@ async def cmd_dep_amount(message: types.Message, state: FSMContext):
     if not amount or amount < 0.5:
         return await message.answer(f"❌ Минимум 0.5 {DOLLAR}", parse_mode="HTML")
     await state.update_data(dep_amount=amount)
-
     uid = message.from_user.id
     db.get_user(uid)
     bal = db.get_balance(uid)
     bet = db.get_bet(uid)
-
     await message.answer(
         f"💰 <b>Пополнение на {amount:.2f} {DOLLAR}</b>\n\n"
         f"{DOLLAR} Баланс — <b>{bal:.2f}</b>\n"
@@ -249,21 +266,44 @@ async def cmd_wd_menu(message: types.Message):
                          reply_markup=withdraw_menu(), parse_mode="HTML")
 
 
+# ============================================================
+#              ПРОМОКОД (текстом) → показывает кнопку
+# ============================================================
 @router.message(F.text.regexp(r"(?i)^промо\s+(\S+)$"))
 async def cmd_promo(message: types.Message):
     m = re.search(r"промо\s+(\S+)", message.text, re.IGNORECASE)
     code = m.group(1).strip().upper()
     uid = message.from_user.id
-    amount = db.use_promo(uid, code)
-    if amount > 0:
-        await message.answer(
-            f"🎁 <b>Промокод активирован!</b>\n\n"
-            f"{DOLLAR} Зачислено: <b>+{amount:.2f}</b>\n"
-            f"{WALLET} Баланс: <b>{db.get_balance(uid):.2f}</b>",
+
+    info = db.get_promo_info(code)
+    if not info:
+        return await message.answer(
+            "❌ <b>Промокод не найден</b>",
             reply_markup=back_menu(), parse_mode="HTML")
-    else:
-        await message.answer("❌ <b>Промокод не найден или использован</b>",
-                             reply_markup=back_menu(), parse_mode="HTML")
+    if info["uses_left"] <= 0:
+        return await message.answer(
+            "❌ <b>Промокод закончился</b>",
+            reply_markup=back_menu(), parse_mode="HTML")
+
+    wager_line = ""
+    if info["required_wager"] > 0:
+        wager_line = (f"📊 Требуется оборот: "
+                      f"<b>{info['required_wager']:.2f}</b> USDT\n")
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text="🎁 Активировать промокод",
+            callback_data=f"activate_promo:{code}",
+            style="success")],
+        [InlineKeyboardButton(text="Назад", callback_data="back_to_main",
+                              style="danger")],
+    ])
+    await message.answer(
+        f"🎁 <b>Промокод найден!</b>\n\n"
+        f"💰 Сумма: <b>{info['amount']:.2f}</b> USDT\n"
+        f"{wager_line}\n"
+        f"Нажми кнопку ниже 👇",
+        reply_markup=kb, parse_mode="HTML")
 
 
 @router.message(F.text.regexp(r"(?i)^промо$"))

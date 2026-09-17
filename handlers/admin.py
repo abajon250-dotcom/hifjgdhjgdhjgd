@@ -24,6 +24,7 @@ class AdminState(StatesGroup):
     waiting_promo_code = State()
     waiting_promo_amount = State()
     waiting_promo_uses = State()
+    waiting_promo_wager = State()
     waiting_treasury_amt = State()
 
 
@@ -32,11 +33,6 @@ def admin_kb():
         [InlineKeyboardButton(text="📊 Обновить", callback_data="admin_refresh"),
          InlineKeyboardButton(text="💰 Казна", callback_data="admin_treasury",
                               style="success")],
-        [InlineKeyboardButton(text="➕ Пополнить казну",
-                              callback_data="admin_treasury_add",
-                              style="success"),
-         InlineKeyboardButton(text="✏️ Установить",
-                              callback_data="admin_treasury_set")],
         [InlineKeyboardButton(text="👥 Пользователи", callback_data="admin_users"),
          InlineKeyboardButton(text="🎁 Создать промокод",
                               callback_data="admin_promo", style="success")],
@@ -77,9 +73,6 @@ async def build_admin_text() -> str:
     )
 
 
-# ============================================================
-#                    ОТКРЫТИЕ
-# ============================================================
 @router.message(Command("admin"))
 async def cmd_admin(message: types.Message):
     if not is_admin(message.from_user.id):
@@ -128,109 +121,65 @@ async def admin_treasury(call: types.CallbackQuery):
     if not is_admin(call.from_user.id):
         return await call.answer("Нет доступа", show_alert=True)
 
-    t = db.get_treasury_manual()
+    await call.answer("⏳ Считаю казну...", show_alert=False)
 
-    db.cursor.execute("SELECT COALESCE(SUM(balance),0) FROM users")
-    users_balance = db.cursor.fetchone()[0]
-    db.cursor.execute("SELECT COALESCE(SUM(total_deposited),0) FROM users")
-    deposited = db.cursor.fetchone()[0]
-    db.cursor.execute("SELECT COALESCE(SUM(total_withdrawn),0) FROM users")
-    withdrawn = db.cursor.fetchone()[0]
+    from utils.treasury import get_full_treasury
+    try:
+        t = await get_full_treasury()
+    except Exception as e:
+        return await call.message.answer(f"❌ Ошибка: {e}")
 
-    total = t["crypto"] + t["xrocket"]
-    reserve = total - users_balance
+    lines = ["💰 <b>КАЗНА КАЗИНО</b>\n"]
 
-    upd = t["updated_at"]
-    upd_str = time.strftime("%d.%m.%Y %H:%M", time.localtime(upd)) if upd else "—"
+    lines.append("💎 <b>CryptoBot:</b>")
+    if t["crypto"]:
+        for code, bal in t["crypto"].items():
+            lines.append(f"  • {code}: <b>{bal:.4f}</b>")
+    else:
+        lines.append("  <i>пусто или недоступно</i>")
 
-    text = (
-        f"💰 <b>КАЗНА КАЗИНО</b>\n\n"
-        f"🏦 <b>CryptoBot:</b> <b>{t['crypto']:.2f}</b> USDT\n"
-        f"ℹ️ <b>xRocket:</b> <b>{t['xrocket']:.2f}</b> USDT\n"
-        f"📊 <b>Всего в казне:</b> <b>{total:.2f}</b> USDT\n"
-        f"🕒 Обновлено: <i>{upd_str}</i>\n\n"
-        f"👥 Обязательства юзерам: <b>{users_balance:.2f}</b> USDT\n"
-        f"⬇️ Пополнено: <b>{deposited:.2f}</b>\n"
-        f"⬆️ Выведено: <b>{withdrawn:.2f}</b>\n\n"
-        f"{'🟢' if reserve >= 0 else '🔴'} <b>Резерв:</b> "
-        f"<b>{reserve:.2f}</b> USDT"
-    )
+    lines.append("\n🚀 <b>xRocket:</b>")
+    if t["xrocket"]:
+        for code, bal in t["xrocket"].items():
+            lines.append(f"  • {code}: <b>{bal:.4f}</b>")
+    else:
+        lines.append("  <i>пусто или недоступно</i>")
+
+    lines.append(f"\n⭐ <b>Stars:</b> <b>{t['stars_manual']:.2f}</b>")
+    lines.append(f"🔥 <b>Hot Wallet:</b> <b>{t['hot_manual']:.2f}</b>")
+    lines.append(f"❄️ <b>Cold Wallet:</b> <b>{t['cold_manual']:.2f}</b>")
+
+    lines.append(f"\n📊 <b>Всего USDT:</b> <b>{t['total_usdt']:.2f}</b>")
+    lines.append(f"👥 Обязательства юзерам: <b>{t['users_balance']:.2f}</b>")
+    res = t["reserve"]
+    lines.append(f"{'🟢' if res >= 0 else '🔴'} <b>Резерв:</b> <b>{res:.2f}</b>")
+
+    text = "\n".join(lines)
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="➕ Пополнить", callback_data="admin_treasury_add",
-                              style="success"),
-         InlineKeyboardButton(text="✏️ Установить", callback_data="admin_treasury_set")],
+        [InlineKeyboardButton(text="✏️ Stars", callback_data="tsetf:stars"),
+         InlineKeyboardButton(text="✏️ Hot", callback_data="tsetf:hot"),
+         InlineKeyboardButton(text="✏️ Cold", callback_data="tsetf:cold")],
         [InlineKeyboardButton(text="🔄 Обновить", callback_data="admin_treasury",
                               style="primary")],
         [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_refresh",
                               style="danger")],
     ])
+
     try:
         await call.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
     except Exception:
         await call.message.answer(text, reply_markup=kb, parse_mode="HTML")
-    await call.answer()
 
 
-@router.callback_query(F.data == "admin_treasury_add")
-async def treasury_add(call: types.CallbackQuery):
+@router.callback_query(F.data.startswith("tsetf:"))
+async def tsetf(call: types.CallbackQuery, state: FSMContext):
     if not is_admin(call.from_user.id):
         return await call.answer("Нет доступа", show_alert=True)
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🏦 CryptoBot", callback_data="tadd:crypto",
-                              style="primary")],
-        [InlineKeyboardButton(text="ℹ️ xRocket", callback_data="tadd:xrocket",
-                              style="primary")],
-        [InlineKeyboardButton(text="🔙 Отмена", callback_data="admin_treasury",
-                              style="danger")],
-    ])
-    await call.message.edit_text("➕ <b>Пополнить казну</b>\n\nВыберите платформу:",
-                                 reply_markup=kb, parse_mode="HTML")
-    await call.answer()
-
-
-@router.callback_query(F.data.startswith("tadd:"))
-async def treasury_add_platform(call: types.CallbackQuery, state: FSMContext):
-    if not is_admin(call.from_user.id):
-        return await call.answer("Нет доступа", show_alert=True)
-    platform = call.data.split(":")[1]
-    await state.update_data(treasury_platform=platform, treasury_action="add")
-    name = "CryptoBot" if platform == "crypto" else "xRocket"
+    field = call.data.split(":")[1]
+    await state.update_data(treasury_field=field)
     await call.message.edit_text(
-        f"➕ <b>Пополнение казны ({name})</b>\n\n"
-        f"Введи сумму в USDT (например: 100):",
-        parse_mode="HTML")
-    await state.set_state(AdminState.waiting_treasury_amt)
-    await call.answer()
-
-
-@router.callback_query(F.data == "admin_treasury_set")
-async def treasury_set(call: types.CallbackQuery):
-    if not is_admin(call.from_user.id):
-        return await call.answer("Нет доступа", show_alert=True)
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🏦 CryptoBot", callback_data="tset:crypto",
-                              style="primary")],
-        [InlineKeyboardButton(text="ℹ️ xRocket", callback_data="tset:xrocket",
-                              style="primary")],
-        [InlineKeyboardButton(text="🔙 Отмена", callback_data="admin_treasury",
-                              style="danger")],
-    ])
-    await call.message.edit_text("✏️ <b>Установить баланс казны</b>\n\nВыберите платформу:",
-                                 reply_markup=kb, parse_mode="HTML")
-    await call.answer()
-
-
-@router.callback_query(F.data.startswith("tset:"))
-async def treasury_set_platform(call: types.CallbackQuery, state: FSMContext):
-    if not is_admin(call.from_user.id):
-        return await call.answer("Нет доступа", show_alert=True)
-    platform = call.data.split(":")[1]
-    await state.update_data(treasury_platform=platform, treasury_action="set")
-    name = "CryptoBot" if platform == "crypto" else "xRocket"
-    await call.message.edit_text(
-        f"✏️ <b>Установка баланса ({name})</b>\n\n"
-        f"Введи точную сумму USDT (например: 250.5):",
+        f"✏️ <b>Установить {field}:</b>\nВведи сумму USDT:",
         parse_mode="HTML")
     await state.set_state(AdminState.waiting_treasury_amt)
     await call.answer()
@@ -248,31 +197,18 @@ async def treasury_amount(message: types.Message, state: FSMContext):
         return await message.answer("❌ Введи положительное число")
 
     data = await state.get_data()
-    platform = data.get("treasury_platform")
-    action = data.get("treasury_action")
-    name = "CryptoBot" if platform == "crypto" else "xRocket"
-
-    if action == "add":
-        db.add_treasury(platform, amount)
-        verb = f"+{amount:.2f}"
-    else:
-        db.set_treasury(platform, amount)
-        verb = f"={amount:.2f}"
-
-    t = db.get_treasury_manual()
-    total = t["crypto"] + t["xrocket"]
-
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💰 Казна", callback_data="admin_treasury",
-                              style="success")],
-    ])
-    await message.answer(
-        f"✅ <b>{name}: {verb} USDT</b>\n\n"
-        f"🏦 CryptoBot: <b>{t['crypto']:.2f}</b>\n"
-        f"ℹ️ xRocket: <b>{t['xrocket']:.2f}</b>\n"
-        f"📊 Всего: <b>{total:.2f}</b>",
-        reply_markup=kb, parse_mode="HTML")
+    field = data.get("treasury_field", "stars")
+    db.set_treasury_field(field, amount)
+    await message.answer(f"✅ <b>{field}: {amount:.2f}</b> USDT",
+                         parse_mode="HTML")
     await state.clear()
+
+    class FakeCall:
+        from_user = message.from_user
+        message = message
+        async def answer(self, *a, **k): pass
+
+    await admin_treasury(FakeCall())
 
 
 # ============================================================
@@ -282,7 +218,7 @@ async def treasury_amount(message: types.Message, state: FSMContext):
 async def admin_promo(call: types.CallbackQuery, state: FSMContext):
     if not is_admin(call.from_user.id):
         return await call.answer("Нет доступа", show_alert=True)
-    await call.message.answer("Введите код промокода (без пробелов):")
+    await call.message.answer("Шаг 1/4. Введите код промокода (без пробелов):")
     await state.set_state(AdminState.waiting_promo_code)
     await call.answer()
 
@@ -292,7 +228,7 @@ async def promo_code(message: types.Message, state: FSMContext):
     if not is_admin(message.from_user.id):
         return
     await state.update_data(code=message.text.strip().upper())
-    await message.answer("Введите сумму бонуса (USDT):")
+    await message.answer("Шаг 2/4. Введите сумму бонуса (USDT):")
     await state.set_state(AdminState.waiting_promo_amount)
 
 
@@ -302,10 +238,12 @@ async def promo_amount(message: types.Message, state: FSMContext):
         return
     try:
         amount = float(message.text.replace(",", "."))
+        if amount <= 0:
+            raise ValueError
     except Exception:
-        return await message.answer("❌ Введите число")
+        return await message.answer("❌ Введите положительное число")
     await state.update_data(amount=amount)
-    await message.answer("Сколько использований?")
+    await message.answer("Шаг 3/4. Сколько использований?")
     await state.set_state(AdminState.waiting_promo_uses)
 
 
@@ -315,24 +253,51 @@ async def promo_uses(message: types.Message, state: FSMContext):
         return
     try:
         uses = int(message.text.strip())
+        if uses <= 0:
+            raise ValueError
     except Exception:
-        return await message.answer("❌ Целое число")
+        return await message.answer("❌ Целое число > 0")
+
+    await state.update_data(uses=uses)
+    await message.answer(
+        "Шаг 4/4. 📊 <b>Минимальный оборот (вагер)</b>\n\n"
+        "Введи число в USDT — сколько юзер должен наиграть, "
+        "чтобы активировать промокод.\n\n"
+        "• <code>0</code> — без ограничений\n"
+        "• <code>50</code> — нужно 50 USDT оборота",
+        parse_mode="HTML")
+    await state.set_state(AdminState.waiting_promo_wager)
+
+
+@router.message(AdminState.waiting_promo_wager)
+async def promo_wager(message: types.Message, state: FSMContext):
+    if not is_admin(message.from_user.id):
+        return
+    try:
+        req_wager = float(message.text.replace(",", ".").strip())
+        if req_wager < 0:
+            raise ValueError
+    except Exception:
+        return await message.answer("❌ Введи число ≥ 0")
 
     data = await state.get_data()
     code = data["code"].upper()
-    db.create_promo(code, data["amount"], uses)
+    db.create_promo(code, data["amount"], data["uses"], req_wager)
 
     bot_info = await message.bot.get_me()
     promo_link = f"https://t.me/{bot_info.username}?start=promo_{code}"
+
+    wager_line = (f"📊 Мин. оборот: <b>{req_wager:.2f}</b> USDT"
+                  if req_wager > 0 else "📊 Мин. оборот: <b>без ограничений</b>")
 
     await message.answer(
         f"✅ <b>Промокод создан!</b>\n\n"
         f"🔑 Код: <code>{code}</code>\n"
         f"💰 Сумма: <b>{data['amount']}</b> USDT\n"
-        f"👥 Использований: <b>{uses}</b>\n\n"
+        f"👥 Использований: <b>{data['uses']}</b>\n"
+        f"{wager_line}\n\n"
         f"🔗 <b>Ссылка для рассылки:</b>\n"
-        f"<code>{promo_link}</code>\n\n"
-        f"<i>Юзер откроет ссылку → промокод активируется автоматически</i>",
+        f"<code>{promo_link}</code>",
         parse_mode="HTML")
     await state.clear()
 
