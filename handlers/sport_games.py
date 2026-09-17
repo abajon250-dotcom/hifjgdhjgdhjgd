@@ -203,14 +203,14 @@ async def play_sport_direct(message: types.Message, game: str, choice: str,
 
     try:
         row = db.cursor.execute("SELECT username FROM users WHERE user_id=?",
-                                 (uid,)).fetchone()
+                                (uid,)).fetchone()
         uname = row[0] if row and row[0] else f"id{uid}"
-        await notify_bet(message.bot, uid, uname, game.capitalize(), bet, emoji)
+        mention = f'<a href="tg://user?id={uid}">{uname}</a>'
     except Exception:
         pass
 
     await message.answer(
-        f"{emoji} Играем... Ставка: <b>{bet}</b> {DOLLAR}",
+        f"{emoji} {mention} поставил <b>{bet:.2f}$</b> на <b>{game}</b>",
         parse_mode="HTML")
 
     m = await message.answer_dice(emoji=emoji)

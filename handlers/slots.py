@@ -28,6 +28,16 @@ async def _no(call):
     await call.answer("❌ Это не твоя игра!", show_alert=True)
 
 
+async def _bet_msg(target, uid, bet):
+    row = db.cursor.execute("SELECT username FROM users WHERE user_id=?",
+                             (uid,)).fetchone()
+    uname = row[0] if row and row[0] else f"id{uid}"
+    mention = f'<a href="tg://user?id={uid}">{uname}</a>'
+    await target.answer(
+        f"🎰 {mention} поставил <b>{bet:.2f}$</b> на <b>слоты</b>",
+        parse_mode="HTML")
+
+
 @router.callback_query(F.data == "game:slots")
 async def slots_open(call: types.CallbackQuery):
     from keyboards.inline import slots_menu
@@ -40,8 +50,7 @@ async def slots_open(call: types.CallbackQuery):
 
 @router.callback_query(F.data.startswith("sl:"))
 async def slots_play(call: types.CallbackQuery):
-    parts = call.data.split(":")
-    choice = parts[1]
+    choice = call.data.split(":")[1]
     uid = _parse_uid(call)
     if not _check_owner(call, uid):
         return await _no(call)
@@ -62,7 +71,8 @@ async def slots_play(call: types.CallbackQuery):
     except Exception:
         pass
 
-    msg = await call.message.edit_text("🎰 | ❓ | ❓ | ❓ |")
+    await _bet_msg(call.message, uid, bet)
+    msg = await call.message.answer("🎰 | ❓ | ❓ | ❓ |")
     await call.answer()
 
     for _ in range(3):
@@ -106,7 +116,7 @@ async def slots_play(call: types.CallbackQuery):
         from utils.refs import give_ref_bonus
         give_ref_bonus(uid, win)
 
-        await call.message.reply(
+        await msg.edit_text(
             f"🔼 {mention} выигрывает <b>{win - bet:.2f}</b> {DOLLAR}\n\n"
             f"<blockquote>🎰 Выпало: {reels_str}\n"
             f"{BET} Ставка: <b>{bet:.2f}</b> {DOLLAR}\n"
@@ -123,7 +133,7 @@ async def slots_play(call: types.CallbackQuery):
         db.add_game(uid, "slots", bet, 0, 0, "lose")
         new_bal = db.get_balance(uid)
 
-        await call.message.reply(
+        await msg.edit_text(
             f"🔽 {mention} проигрывает <b>{bet:.2f}</b> {DOLLAR}\n\n"
             f"<blockquote>🎰 Выпало: {reels_str}\n"
             f"{BET} Ставка: <b>{bet:.2f}</b> {DOLLAR}\n"
@@ -138,7 +148,7 @@ async def slots_play(call: types.CallbackQuery):
 
 
 # ============================================================
-#              ПРЯМОЙ ЗАПУСК СЛОТОВ (из текста и Повторить)
+#              ПРЯМОЙ ЗАПУСК
 # ============================================================
 async def play_slots_direct(message: types.Message, choice: str = "any",
                              uid: int = None):
@@ -161,7 +171,9 @@ async def play_slots_direct(message: types.Message, choice: str = "any",
     except Exception:
         pass
 
+    await _bet_msg(message, uid, bet)
     msg = await message.answer("🎰 | ❓ | ❓ | ❓ |")
+
     for _ in range(3):
         a, b, c = [random.choice(SYMBOLS) for _ in range(3)]
         try:

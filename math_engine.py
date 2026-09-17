@@ -5,8 +5,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 HOUSE_EDGE = float(os.getenv("HOUSE_EDGE", 0.05))
-COMMISSION_DEPOSIT = 0.05   # 5% пополнение
-COMMISSION_WITHDRAW = 0.0   # 0% вывод
+COMMISSION_DEPOSIT = 0.05
+COMMISSION_WITHDRAW = 0.0
 STARS_TO_USD = 0.013
 
 
@@ -22,14 +22,6 @@ def apply_withdraw_commission(a):
 #              1 КУБ
 # ============================================================
 def calc_1_dice(bet, choice, v):
-    """
-    even / odd          — x1.9
-    less (<=3) / more   — x1.9
-    num1..num6          — x5.6
-    numbers             — выбрать 2 числа, если выпало одно из них: x2.8
-    no_numbers          — выбрать 2 числа, если не выпало ни одно: x5.6
-    ladder1/ladder2     — игра на серию (упрощённо: победа x2 / x2.8)
-    """
     win, result = 0.0, "lose"
 
     if choice == "even" and v % 2 == 0:
@@ -42,17 +34,21 @@ def calc_1_dice(bet, choice, v):
         win, result = bet * 1.9, "win"
     elif choice.startswith("num") and v == int(choice[3:]):
         win, result = bet * 5.6, "win"
-    elif choice == "numbers":
-        # выигрыш если выпало 3 или 4 (пример)
-        if v in (3, 4):
-            win, result = bet * 2.8, "win"
-    elif choice == "no_numbers":
-        if v in (1, 6):
-            win, result = bet * 5.6, "win"
+    elif choice == "numbers" and v in (3, 4):
+        win, result = bet * 2.8, "win"
+    elif choice == "no_numbers" and v in (1, 6):
+        win, result = bet * 5.6, "win"
     elif choice == "ladder1" and v in (1, 2):
         win, result = bet * 2.0, "win"
     elif choice == "ladder2" and v in (5, 6):
         win, result = bet * 2.8, "win"
+    elif choice == "no_6":
+        if v == 6:
+            # Проигрыш ×19. Bet уже списан (−1×). Дополнительно −18×.
+            win, result = -bet * 18, "lose"
+        else:
+            mult = {1: 3, 2: 4, 3: 5, 4: 6, 5: 7}[v]
+            win, result = bet * mult, "win"
 
     return round(win, 2), result
 
@@ -78,7 +74,6 @@ def calc_2_dice(bet, choice, d1, d2):
     elif choice == "double" and d1 == d2:
         win, result = bet * 5.5, "win"
     elif choice == "sum_prod":
-        # сумма/произведение = 10 (пример)
         if total == 10 or prod == 10:
             win, result = bet * 17, "win"
     elif choice == "corridor" and 5 <= total <= 9:
@@ -87,6 +82,12 @@ def calc_2_dice(bet, choice, d1, d2):
         win, result = bet * 3, "win"
     elif choice == "lift" and total >= 10:
         win, result = bet * 2.2, "win"
+    elif choice == "sum7_exact" and total == 7:
+        win, result = bet * 5.5, "win"
+    elif choice == "sum7_less" and total < 7:
+        win, result = bet * 2.5, "win"
+    elif choice == "sum7_greater" and total > 7:
+        win, result = bet * 2.5, "win"
 
     return round(win, 2), result
 
@@ -118,10 +119,9 @@ def calc_3_dice(bet, choice, d1, d2, d3):
 
 
 # ============================================================
-#              СПОРТ (Telegram Dice)
+#              СПОРТ
 # ============================================================
 def calc_football(bet, choice, v):
-    # v от 1 до 5
     if choice == "clean" and v == 5:
         return round(bet * 4.7, 2), "win"
     if choice == "any" and v in (3, 4, 5):
@@ -166,7 +166,6 @@ def calc_basketball(bet, choice, v):
 
 
 def calc_darts(bet, choice, v):
-    # 1 - miss, 2 - bull, 3-6 - sectors
     if choice == "center" and v == 2:
         return round(bet * 4.7, 2), "win"
     if choice == "nine" and v == 6:
@@ -226,7 +225,6 @@ def calc_slots(bet, choice, reels):
     elif choice == "lines" and len(set(reels)) <= 2:
         win, result = bet * 150, "win"
     elif choice == "sum":
-        # сумма символов (условно)
         win, result = bet * 6, "win" if random.random() < 0.4 else "lose"
     elif choice == "piggy":
         win, result = bet * 2.4, "win" if random.random() < 0.5 else "lose"

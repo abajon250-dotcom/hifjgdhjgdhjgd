@@ -10,6 +10,30 @@ from utils.user_state import get_bet
 
 router = Router()
 
+CHOICE_LABEL = {
+    "even": "чёт", "odd": "нечёт",
+    "less": "меньше", "more": "больше",
+    "numbers": "числа", "no_numbers": "без чисел",
+    "ladder1": "лесенка", "ladder2": "лесенка",
+    "double": "дубль", "sum_prod": "сумма/произв",
+    "corridor": "коридор", "sniper": "снайпер", "lift": "лифт",
+    "triple": "трипл", "big": "большой куб",
+    "sum7_exact": "сумма 7", "sum7_less": "сумма <7", "sum7_greater": "сумма >7",
+    "no_6": "не 6",
+}
+
+
+def _label(choice):
+    if choice in CHOICE_LABEL:
+        return CHOICE_LABEL[choice]
+    if choice.startswith("num"):
+        return f"число {choice[3:]}"
+    if choice.startswith("exact_"):
+        return f"точное {choice.split('_')[1]}"
+    if choice.startswith("two"):
+        return f"на {choice[3:]}"
+    return choice
+
 
 def _parse_uid(call):
     parts = call.data.split(":")
@@ -23,7 +47,17 @@ def _check_owner(call, uid):
 
 
 async def _not_owner(call):
-    await call.answer("❌ Это не твоя игра! Напиши свою команду.", show_alert=True)
+    await call.answer("❌ Это не твоя игра!", show_alert=True)
+
+
+async def _bet_message(target, uid, bet, game_label):
+    row = db.cursor.execute("SELECT username FROM users WHERE user_id=?",
+                             (uid,)).fetchone()
+    uname = row[0] if row and row[0] else f"id{uid}"
+    mention = f'<a href="tg://user?id={uid}">{uname}</a>'
+    await target.answer(
+        f"🎲 {mention} поставил <b>{bet:.2f}$</b> на <b>{game_label}</b>",
+        parse_mode="HTML")
 
 
 @router.callback_query(F.data == "dice:1")
@@ -65,8 +99,7 @@ async def d1_allin(call: types.CallbackQuery):
 async def play_1(call: types.CallbackQuery):
     if call.data == "d1:allin":
         return
-    parts = call.data.split(":")
-    choice = parts[1]
+    choice = call.data.split(":")[1]
     uid = _parse_uid(call)
     if not _check_owner(call, uid):
         return await _not_owner(call)
@@ -75,8 +108,7 @@ async def play_1(call: types.CallbackQuery):
 
 @router.callback_query(F.data.startswith("d2:"))
 async def play_2(call: types.CallbackQuery):
-    parts = call.data.split(":")
-    choice = parts[1]
+    choice = call.data.split(":")[1]
     uid = _parse_uid(call)
     if not _check_owner(call, uid):
         return await _not_owner(call)
@@ -85,8 +117,7 @@ async def play_2(call: types.CallbackQuery):
 
 @router.callback_query(F.data.startswith("d3:"))
 async def play_3(call: types.CallbackQuery):
-    parts = call.data.split(":")
-    choice = parts[1]
+    choice = call.data.split(":")[1]
     uid = _parse_uid(call)
     if not _check_owner(call, uid):
         return await _not_owner(call)
@@ -95,8 +126,7 @@ async def play_3(call: types.CallbackQuery):
 
 @router.callback_query(F.data.startswith("d1two:"))
 async def play_1_two(call: types.CallbackQuery):
-    parts = call.data.split(":")
-    nums_str = parts[1]
+    nums_str = call.data.split(":")[1]
     uid = _parse_uid(call)
     if not _check_owner(call, uid):
         return await _not_owner(call)
@@ -110,8 +140,8 @@ async def play_1_two(call: types.CallbackQuery):
     db.add_wager(uid, bet)
     db.inc_games(uid)
 
-    await call.message.edit_text(
-        f"{DICE} Бросаю... Ставка: <b>{bet}</b> {DOLLAR}", parse_mode="HTML")
+    await _bet_message(call.message, uid, bet,
+                       f"числа {','.join(map(str, nums))}")
     await call.answer()
 
     m = await call.message.answer_dice(emoji="🎲")
@@ -148,8 +178,7 @@ async def _play(call, uid, dtype, choice):
     except Exception:
         pass
 
-    await call.message.edit_text(
-        f"{DICE} Бросаю... Ставка: <b>{bet}</b> {DOLLAR}", parse_mode="HTML")
+    await _bet_message(call.message, uid, bet, f"куб — {_label(choice)}")
     await call.answer()
 
     if dtype == 1:
@@ -223,13 +252,19 @@ async def _finish(call, uid, game_key, value, bet, win, result, mult, choice="")
                                 bet, win, mult, new_bal, True)
         except Exception as e:
             print(f"notify_win: {e}")
+
     else:
-        db.add_loss(uid, bet)
+        extra = -win if win < 0 else 0.0
+        total_loss = bet + extra
+
+        if extra > 0:
+            db.update_balance(uid, -extra)
+        db.add_loss(uid, total_loss)
         db.add_game(uid, game_key, bet, 0, 0, "lose")
         new_bal = db.get_balance(uid)
 
         await call.message.reply(
-            f"🔽 {mention} проигрывает <b>{bet:.2f}</b> {DOLLAR}\n\n"
+            f"🔽 {mention} проигрывает <b>{total_loss:.2f}</b> {DOLLAR}\n\n"
             f"<blockquote>🎲 Выпало: <b>{value}</b>\n"
             f"{BET} Ставка: <b>{bet:.2f}</b> {DOLLAR}\n"
             f"{WALLET} Баланс: <b>{new_bal:.2f}</b> {DOLLAR}</blockquote>",
@@ -243,7 +278,7 @@ async def _finish(call, uid, game_key, value, bet, win, result, mult, choice="")
 
 
 # ============================================================
-#              ПРЯМОЙ ЗАПУСК (из текстовых команд и Повторить)
+#              ПРЯМОЙ ЗАПУСК (текст + Повторить)
 # ============================================================
 async def play_dice_direct(message: types.Message, dtype: int, choice: str,
                             uid: int = None):
@@ -268,9 +303,7 @@ async def play_dice_direct(message: types.Message, dtype: int, choice: str,
     except Exception:
         pass
 
-    await message.answer(
-        f"{DICE} Бросаю... Ставка: <b>{bet}</b> {DOLLAR}",
-        parse_mode="HTML")
+    await _bet_message(message, uid, bet, f"куб — {_label(choice)}")
 
     if dtype == 1:
         m = await message.answer_dice(emoji="🎲")
@@ -323,12 +356,17 @@ async def play_dice_direct(message: types.Message, dtype: int, choice: str,
         except Exception as e:
             print(f"notify_win: {e}")
     else:
-        db.add_loss(uid, bet)
+        extra = -win if win < 0 else 0.0
+        total_loss = bet + extra
+
+        if extra > 0:
+            db.update_balance(uid, -extra)
+        db.add_loss(uid, total_loss)
         db.add_game(uid, f"dice_{dtype}", bet, 0, 0, "lose")
         new_bal = db.get_balance(uid)
 
         await message.answer(
-            f"🔽 {mention} проигрывает <b>{bet:.2f}</b> {DOLLAR}\n\n"
+            f"🔽 {mention} проигрывает <b>{total_loss:.2f}</b> {DOLLAR}\n\n"
             f"<blockquote>🎲 Выпало: <b>{value}</b>\n"
             f"{BET} Ставка: <b>{bet:.2f}</b> {DOLLAR}\n"
             f"{WALLET} Баланс: <b>{new_bal:.2f}</b> {DOLLAR}</blockquote>",

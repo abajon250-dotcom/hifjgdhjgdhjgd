@@ -24,6 +24,9 @@ def _amount(text):
         return None
 
 
+# ============================================================
+#                    БАЗОВЫЕ КОМАНДЫ
+# ============================================================
 @router.message(F.text.regexp(r"(?i)^(топ|top)$"))
 async def cmd_top(message: types.Message):
     top = db.get_top_wagered(10)
@@ -117,14 +120,23 @@ async def cmd_help(message: types.Message):
         f"• <code>профиль</code> — профиль\n"
         f"• <code>топ</code> — топ игроков\n"
         f"• <code>wager</code> — статистика\n\n"
-        f"💰 <b>Ставка и деньги:</b>\n"
-        f"• <code>ставка 0.2</code> — установить\n"
+        f"💰 <b>Ставка:</b> <code>5$</code> или <code>ставка 5</code>\n"
         f"• <code>вб</code> — весь баланс\n"
         f"• <code>деп 5</code> / <code>вывод 5</code>\n"
         f"• <code>промо КОД</code>\n\n"
-        f"🎲 <b>Игры:</b>\n"
-        f"• <code>куб 5</code> / <code>куб 3,4</code> / <code>куб 7+</code>\n"
-        f"• <code>футбол</code> / <code>баскет</code> / <code>дартс</code> / <code>боулинг</code>\n"
+        f"🎲 <b>Кубики:</b>\n"
+        f"• <code>куб 5</code> — на число\n"
+        f"• <code>куб чет</code> / <code>куб нечет</code>\n"
+        f"• <code>куб больше</code> / <code>куб меньше</code>\n"
+        f"• <code>куб число 5</code>\n"
+        f"• <code>куб нет 6</code> — не выпадет 6\n"
+        f"• <code>куб 7-</code> / <code>куб 7+</code> / <code>куб 7</code>\n\n"
+        f"⚽ <b>Спорт (пиши пару слов):</b>\n"
+        f"• <code>футбол гол</code> / <code>футбол мимо</code> / <code>футбол штанга</code>\n"
+        f"• <code>баскет гол</code> / <code>баскет отскок</code> / <code>баскет красный</code> / <code>баскет белый</code>\n"
+        f"• <code>дартс центр</code> / <code>дартс промах</code> / <code>дартс штанга</code>\n"
+        f"• <code>боулинг страйк</code> / <code>боулинг промах</code>\n\n"
+        f"🎮 <b>Остальные:</b>\n"
         f"• <code>слоты</code> / <code>мины</code> / <code>башня</code>\n"
         f"• <code>краш</code> / <code>кено</code> / <code>рулетка</code>",
         reply_markup=back_menu(), parse_mode="HTML")
@@ -186,9 +198,8 @@ async def cmd_bet_set(message: types.Message):
     bal = db.get_balance(uid)
     if bet > bal:
         return await message.answer(
-            f"❌ <b>Ставка больше баланса!</b>\n\n"
-            f"{DOLLAR} Баланс: <b>{bal:.2f}</b>\n"
-            f"{BET} Попытка: <b>{bet:.2f}</b>",
+            f"❌ <b>Ставка больше баланса</b>\n\n"
+            f"{DOLLAR} Баланс: <b>{bal:.2f}</b>",
             parse_mode="HTML")
     ok = db.set_bet(uid, bet)
     if ok:
@@ -211,6 +222,31 @@ async def cmd_allin(message: types.Message):
                          reply_markup=back_menu(), parse_mode="HTML")
 
 
+# ============================================================
+#              СТАВКА ЧИСЛОМ ТОЛЬКО С $ (тихо, без подтверждения)
+# ============================================================
+@router.message(F.text.regexp(r"^\s*\d+(?:[.,]\d+)?\s*\$\s*$"))
+async def cmd_bet_short(message: types.Message):
+    uid = message.from_user.id
+    t = (message.text or "").strip().replace("$", "").replace(",", ".").strip()
+    try:
+        bet = float(t)
+        if bet <= 0:
+            return
+    except Exception:
+        return
+    bal = db.get_balance(uid)
+    if bet > bal:
+        return await message.answer(
+            f"❌ <b>Ставка больше баланса</b>\n\n"
+            f"{DOLLAR} Баланс: <b>{bal:.2f}</b>",
+            parse_mode="HTML")
+    db.set_bet(uid, bet)
+
+
+# ============================================================
+#              ДЕПОЗИТ / ВЫВОД
+# ============================================================
 @router.message(F.text.regexp(r"(?i)^(деп|депозит|пополнить|пополнение)\s+([\d.,]+)$"))
 async def cmd_dep_amount(message: types.Message, state: FSMContext):
     amount = _amount(message.text)
@@ -246,8 +282,8 @@ async def cmd_dep_menu(message: types.Message):
 @router.message(F.text.regexp(r"(?i)^(вывод|вывести)\s+([\d.,]+)$"))
 async def cmd_wd_amount(message: types.Message, state: FSMContext):
     amount = _amount(message.text)
-    if not amount or amount < 2:
-        return await message.answer(f"❌ Минимум для вывода: 2 {DOLLAR}",
+    if not amount or amount < 1:
+        return await message.answer(f"❌ Минимум для вывода: 1 {DOLLAR}",
                                     parse_mode="HTML")
     bal = db.get_balance(message.from_user.id)
     if amount > bal:
@@ -265,7 +301,7 @@ async def cmd_wd_menu(message: types.Message):
 
 
 # ============================================================
-#              ПРОМОКОД (текстом) → показывает кнопку
+#              ПРОМОКОД
 # ============================================================
 @router.message(F.text.regexp(r"(?i)^промо\s+(\S+)$"))
 async def cmd_promo(message: types.Message):
@@ -311,187 +347,7 @@ async def cmd_promo_hint(message: types.Message):
 
 
 # ============================================================
-#              КУБИКИ
-# ============================================================
-@router.message(F.text.regexp(r"(?i)^(куб|кубик|дайс|dice)\s+([1-6])$"))
-async def cmd_dice1(message: types.Message):
-    uid = message.from_user.id
-    num = int(message.text.split()[-1])
-    bet = get_bet(uid)
-    if not db.has_enough(uid, bet):
-        return await message.answer(f"❌ Нужно <b>{bet}</b> {DOLLAR}", parse_mode="HTML")
-    await message.answer(
-        f"🎲 <a href='tg://user?id={uid}'>{message.from_user.full_name}</a>, "
-        f"{BET} <b>{bet}</b> {DOLLAR} на число <b>{num}</b>",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=f"Бросить на {num}",
-                                  callback_data=f"d1:num{num}:{uid}", style="success")],
-            [InlineKeyboardButton(text="Назад", callback_data="games_main",
-                                  style="danger")],
-        ]), parse_mode="HTML")
-
-
-@router.message(F.text.regexp(r"(?i)^(куб|кубик|дайс|dice)\s+([1-6])\s*,\s*([1-6])$"))
-async def cmd_dice1_two(message: types.Message):
-    uid = message.from_user.id
-    nums = re.findall(r"[1-6]", message.text)
-    a, b = int(nums[0]), int(nums[1])
-    if a == b:
-        return await message.answer("❌ Числа разные")
-    bet = get_bet(uid)
-    if not db.has_enough(uid, bet):
-        return await message.answer(f"❌ Нужно <b>{bet}</b> {DOLLAR}", parse_mode="HTML")
-    await message.answer(
-        f"🎲 <a href='tg://user?id={uid}'>{message.from_user.full_name}</a>, "
-        f"{BET} <b>{bet}</b> {DOLLAR} на {a} и {b}",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="Бросить",
-                                  callback_data=f"d1two:{a},{b}:{uid}", style="success")],
-            [InlineKeyboardButton(text="Назад", callback_data="games_main",
-                                  style="danger")],
-        ]), parse_mode="HTML")
-
-
-@router.message(F.text.regexp(r"(?i)^(куб|кубик|дайс|dice)\s*7-$"))
-async def cmd_dice2_less7(message: types.Message):
-    uid = message.from_user.id
-    bet = get_bet(uid)
-    await message.answer(
-        f"🎲🎲 <a href='tg://user?id={uid}'>{message.from_user.full_name}</a>, "
-        f"{BET} <b>{bet}</b> {DOLLAR} на <b>меньше 7</b>",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="Бросить", callback_data=f"d2:less:{uid}",
-                                  style="success")],
-            [InlineKeyboardButton(text="Назад", callback_data="games_main",
-                                  style="danger")],
-        ]), parse_mode="HTML")
-
-
-@router.message(F.text.regexp(r"(?i)^(куб|кубик|дайс|dice)\s*7\+$"))
-async def cmd_dice2_greater7(message: types.Message):
-    uid = message.from_user.id
-    bet = get_bet(uid)
-    await message.answer(
-        f"🎲🎲 <a href='tg://user?id={uid}'>{message.from_user.full_name}</a>, "
-        f"{BET} <b>{bet}</b> {DOLLAR} на <b>больше 7</b>",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="Бросить", callback_data=f"d2:more:{uid}",
-                                  style="success")],
-            [InlineKeyboardButton(text="Назад", callback_data="games_main",
-                                  style="danger")],
-        ]), parse_mode="HTML")
-
-
-@router.message(F.text.regexp(r"(?i)^(куб|кубик|дайс|dice)\s*7$"))
-async def cmd_dice2_sum7(message: types.Message):
-    uid = message.from_user.id
-    bet = get_bet(uid)
-    await message.answer(
-        f"🎲🎲 <a href='tg://user?id={uid}'>{message.from_user.full_name}</a>, "
-        f"{BET} <b>{bet}</b> {DOLLAR} на <b>равно 7</b>",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="Бросить", callback_data=f"d2:sum7:{uid}",
-                                  style="success")],
-            [InlineKeyboardButton(text="Назад", callback_data="games_main",
-                                  style="danger")],
-        ]), parse_mode="HTML")
-
-
-# ============================================================
-#              СПОРТ
-# ============================================================
-def _sport_kb(prefix, items, uid):
-    rows, row = [], []
-    for text, code in items:
-        row.append(InlineKeyboardButton(text=text,
-                                        callback_data=f"{prefix}:{code}:{uid}"))
-        if len(row) == 2:
-            rows.append(row); row = []
-    if row:
-        rows.append(row)
-    rows.append([InlineKeyboardButton(text="Назад", callback_data="games_main",
-                                      style="danger")])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
-
-
-@router.message(F.text.regexp(r"(?i)^(футбол|фут|football)$"))
-async def cmd_football(message: types.Message):
-    uid = message.from_user.id
-    bet = get_bet(uid)
-    items = [("Мимо (x3)","mimo"),("Штанга (x4)","shtanga"),("Центр (x2)","center"),
-             ("От штанги (x3.5)","from_shtanga"),("Угол (x1.8)","corner")]
-    await message.answer(
-        f"⚽ <a href='tg://user?id={uid}'>{message.from_user.full_name}</a>, "
-        f"{BET} <b>{bet}</b> {DOLLAR}",
-        reply_markup=_sport_kb("fc", items, uid), parse_mode="HTML")
-
-
-@router.message(F.text.regexp(r"(?i)^(баскет|баск|basket)$"))
-async def cmd_basket(message: types.Message):
-    uid = message.from_user.id
-    bet = get_bet(uid)
-    items = [("Отскок (x3)","otskok"),("Близко (x4)","blizko"),
-             ("Застрял (x5)","zastryal"),("С краем (x2)","edge"),
-             ("Прямое (x1.5)","direct")]
-    await message.answer(
-        f"🏀 <a href='tg://user?id={uid}'>{message.from_user.full_name}</a>, "
-        f"{BET} <b>{bet}</b> {DOLLAR}",
-        reply_markup=_sport_kb("bc", items, uid), parse_mode="HTML")
-
-
-@router.message(F.text.regexp(r"(?i)^(дартс|darts)$"))
-async def cmd_darts(message: types.Message):
-    uid = message.from_user.id
-    bet = get_bet(uid)
-    items = [("Промах (x3)","miss"),("В центр (x5)","bull"),("Сектор 3","s3"),
-             ("Сектор 4","s4"),("Сектор 5","s5"),("Сектор 6","s6")]
-    await message.answer(
-        f"🎯 <a href='tg://user?id={uid}'>{message.from_user.full_name}</a>, "
-        f"{BET} <b>{bet}</b> {DOLLAR}",
-        reply_markup=_sport_kb("dc", items, uid), parse_mode="HTML")
-
-
-@router.message(F.text.regexp(r"(?i)^(боулинг|bowling)$"))
-async def cmd_bowling(message: types.Message):
-    uid = message.from_user.id
-    bet = get_bet(uid)
-    items = [("Промах (x3.5)","miss"),("1/6 (x4)","p1"),("3/6 (x3)","p3"),
-             ("4/6 (x2.5)","p4"),("5/6 (x2)","p5"),("Страйк (x1.5)","strike")]
-    await message.answer(
-        f"🎳 <a href='tg://user?id={uid}'>{message.from_user.full_name}</a>, "
-        f"{BET} <b>{bet}</b> {DOLLAR}",
-        reply_markup=_sport_kb("wc", items, uid), parse_mode="HTML")
-
-# ============================================================
-#              СТАВКА ЧИСЛОМ: 24 или 24$
-# ============================================================
-# ============================================================
-#              СТАВКА ЧИСЛОМ ТОЛЬКО С $: 24$ или 0.5$
-# ============================================================
-@router.message(F.text.regexp(r"^\s*\d+(?:[.,]\d+)?\s*\$\s*$"))
-async def cmd_bet_short(message: types.Message):
-    uid = message.from_user.id
-    t = (message.text or "").strip().replace("$", "").replace(",", ".").strip()
-    try:
-        bet = float(t)
-        if bet <= 0:
-            return
-    except Exception:
-        return
-    bal = db.get_balance(uid)
-    if bet > bal:
-        return await message.answer(
-            f"❌ <b>Ставка больше баланса</b>\n\n"
-            f"{DOLLAR} Баланс: <b>{bal:.2f}</b>\n"
-            f"{BET} Попытка: <b>{bet:.2f}</b>",
-            parse_mode="HTML")
-    if db.set_bet(uid, bet):
-        await message.answer(f"✅ Ставка: <b>{bet}</b> {DOLLAR}",
-                             parse_mode="HTML")
-
-
-# ============================================================
-#              КУБИКИ ПО ТЕКСТУ — ПРЯМОЙ ЗАПУСК
+#              КУБИКИ — ПРЯМОЙ ЗАПУСК
 # ============================================================
 @router.message(F.text.regexp(r"(?i)^куб\s+([1-6])$"))
 async def go_dice_num(message: types.Message):
@@ -500,16 +356,59 @@ async def go_dice_num(message: types.Message):
     await play_dice_direct(message, 1, f"num{n}")
 
 
-@router.message(F.text.regexp(r"(?i)^куб\s*7-$"))
-async def go_dice_less(message: types.Message):
+@router.message(F.text.regexp(r"(?i)^куб\s+(чет|чёт)$"))
+async def go_dice_even(message: types.Message):
     from handlers.dice_games import play_dice_direct
-    await play_dice_direct(message, 2, "less")
+    await play_dice_direct(message, 1, "even")
+
+
+@router.message(F.text.regexp(r"(?i)^куб\s+(нечет|нечёт)$"))
+async def go_dice_odd(message: types.Message):
+    from handlers.dice_games import play_dice_direct
+    await play_dice_direct(message, 1, "odd")
+
+
+@router.message(F.text.regexp(r"(?i)^куб\s+(меньше|мень)$"))
+async def go_dice_less_cmd(message: types.Message):
+    from handlers.dice_games import play_dice_direct
+    await play_dice_direct(message, 1, "less")
+
+
+@router.message(F.text.regexp(r"(?i)^куб\s+(больше|бол)$"))
+async def go_dice_more_cmd(message: types.Message):
+    from handlers.dice_games import play_dice_direct
+    await play_dice_direct(message, 1, "more")
+
+
+@router.message(F.text.regexp(r"(?i)^куб\s+числ[оа]\s+([1-6])$"))
+async def go_dice_num_word(message: types.Message):
+    n = int(re.search(r"([1-6])", message.text).group(1))
+    from handlers.dice_games import play_dice_direct
+    await play_dice_direct(message, 1, f"num{n}")
+
+
+@router.message(F.text.regexp(r"(?i)^куб\s+нет\s*([1-6])$|^куб\s+без\s*([1-6])$"))
+async def go_dice_no_num(message: types.Message):
+    n = int(re.search(r"([1-6])", message.text).group(1))
+    from handlers.dice_games import play_dice_direct
+    if n == 6:
+        await play_dice_direct(message, 1, "no_6")
+    else:
+        await message.answer(
+            f"❌ Пока доступно только <code>куб нет 6</code>",
+            parse_mode="HTML")
+
+
+@router.message(F.text.regexp(r"(?i)^куб\s*7-$"))
+async def go_dice_less7(message: types.Message):
+    from handlers.dice_games import play_dice_direct
+    await play_dice_direct(message, 2, "sum7_less")
 
 
 @router.message(F.text.regexp(r"(?i)^куб\s*7\+$"))
-async def go_dice_more(message: types.Message):
+async def go_dice_more7(message: types.Message):
     from handlers.dice_games import play_dice_direct
-    await play_dice_direct(message, 2, "more")
+    await play_dice_direct(message, 2, "sum7_greater")
 
 
 @router.message(F.text.regexp(r"(?i)^куб\s*7$"))
@@ -519,7 +418,7 @@ async def go_dice_sum7(message: types.Message):
 
 
 # ============================================================
-#              СЛОТЫ ПО ТЕКСТУ
+#              СЛОТЫ
 # ============================================================
 @router.message(F.text.regexp(r"(?i)^(слоты|слот)$"))
 async def go_slots(message: types.Message):
@@ -528,7 +427,7 @@ async def go_slots(message: types.Message):
 
 
 # ============================================================
-#              СПОРТ ПО ТЕКСТУ: "баскет гол" и т.д.
+#              СПОРТ (пара слов)
 # ============================================================
 SPORT_TEXT = {
     ("футбол", "гол"):     ("football",   "clean"),
@@ -556,15 +455,75 @@ async def go_sport_text(message: types.Message):
     if key not in SPORT_TEXT:
         opts = ", ".join(k[1] for k in SPORT_TEXT if k[0] == parts[0])
         return await message.answer(
-            f"❌ Не знаю исход <code>{parts[1]}</code> для «{parts[0]}»\n\n"
-            f"Доступные: <b>{opts}</b>", parse_mode="HTML")
+            f"❌ Не знаю <code>{parts[1]}</code> для «{parts[0]}»\n"
+            f"Доступно: <b>{opts}</b>", parse_mode="HTML")
     game, choice = SPORT_TEXT[key]
     from handlers.sport_games import play_sport_direct
     await play_sport_direct(message, game, choice)
 
 
 # ============================================================
-#              КНОПКА "ПОВТОРИТЬ"
+#              АРКАДЫ
+# ============================================================
+@router.message(F.text.regexp(r"(?i)^(мины|мина)$"))
+async def go_mines(message: types.Message):
+    from keyboards.inline import mines_count_menu
+    bet = get_bet(message.from_user.id)
+    await message.answer(
+        f"💣 Ставка: <b>{bet}</b> {DOLLAR}\nВыберите кол-во мин:",
+        reply_markup=mines_count_menu(), parse_mode="HTML")
+
+
+@router.message(F.text.regexp(r"(?i)^(башня|tower)$"))
+async def go_tower(message: types.Message):
+    uid = message.from_user.id
+    bet = get_bet(uid)
+    if not db.has_enough(uid, bet):
+        return await message.answer(
+            f"❌ Нужно <b>{bet}</b> {DOLLAR}", parse_mode="HTML")
+    db.update_balance(uid, -bet)
+    db.add_wager(uid, bet)
+    db.inc_games(uid)
+    db.set_active_game(uid, "tower", "playing", bet, 1.0, "0")
+    from handlers.arcades import _render_tower
+    await _render_tower(message, uid)
+
+
+@router.message(F.text.regexp(r"(?i)^(краш|crash)$"))
+async def go_crash(message: types.Message):
+    uid = message.from_user.id
+    bet = get_bet(uid)
+    if not db.has_enough(uid, bet):
+        return await message.answer(
+            f"❌ Нужно <b>{bet}</b> {DOLLAR}", parse_mode="HTML")
+    from handlers.arcades import start_crash_direct
+    await start_crash_direct(message, uid, bet)
+
+
+@router.message(F.text.regexp(r"(?i)^(кено|keno)$"))
+async def go_keno(message: types.Message):
+    uid = message.from_user.id
+    bet = get_bet(uid)
+    if not db.has_enough(uid, bet):
+        return await message.answer(
+            f"❌ Нужно <b>{bet}</b> {DOLLAR}", parse_mode="HTML")
+    from handlers.arcades import play_keno_direct
+    await play_keno_direct(message, uid, bet)
+
+
+@router.message(F.text.regexp(r"(?i)^(рулетка|руль)$"))
+async def go_roulette(message: types.Message):
+    uid = message.from_user.id
+    bet = get_bet(uid)
+    if not db.has_enough(uid, bet):
+        return await message.answer(
+            f"❌ Нужно <b>{bet}</b> {DOLLAR}", parse_mode="HTML")
+    from handlers.arcades import play_roulette_direct
+    await play_roulette_direct(message, uid, bet)
+
+
+# ============================================================
+#              ПОВТОРИТЬ
 # ============================================================
 @router.callback_query(F.data.startswith("replay:"))
 async def replay_game(call: types.CallbackQuery):
