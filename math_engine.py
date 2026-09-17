@@ -5,9 +5,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 HOUSE_EDGE = float(os.getenv("HOUSE_EDGE", 0.05))
-COMMISSION_DEPOSIT = 0.05   # 5% пополнение
-COMMISSION_WITHDRAW = 0.0   # 0% вывод
+COMMISSION_DEPOSIT = 0.05
+COMMISSION_WITHDRAW = 0.0
 STARS_TO_USD = 0.013
+
+MIN_DEPOSIT = 0.2
+MIN_WITHDRAW = 0.4
+WIN_COMMISSION = 0.10
 
 
 def stars_to_usd(stars): return round(stars * STARS_TO_USD, 2)
@@ -22,35 +26,15 @@ def apply_withdraw_commission(a):
     return round(a - a * COMMISSION_WITHDRAW, 2), round(a * COMMISSION_WITHDRAW, 2)
 
 
-# ============================================================
-#              КОМИССИЯ НА ВЫИГРЫШ (2%)
-# ============================================================
-WIN_COMMISSION = 0.02
-
-
 def apply_win_commission(win):
-    """Возвращает (credited, commission) с учётом 2% комиссии на выигрыш."""
     if win <= 0:
         return 0.0, 0.0
     commission = round(win * WIN_COMMISSION, 2)
     return round(win - commission, 2), commission
 
 
-# ============================================================
-#              1 КУБ
-# ============================================================
 def calc_1_dice(bet, choice, v):
-    """
-    even / odd          — x1.9
-    less (<=3) / more   — x1.9
-    num1..num6          — x5.6
-    numbers             — x2.8
-    no_numbers          — x5.6
-    ladder1 / ladder2   — x2.0 / x2.8
-    no_6                — 1→x3, 2→x4, 3→x5, 4→x6, 5→x7, 6→промах −18×
-    """
     win, result = 0.0, "lose"
-
     if choice == "even" and v % 2 == 0:
         win, result = bet * 1.9, "win"
     elif choice == "odd" and v % 2 != 0:
@@ -75,20 +59,15 @@ def calc_1_dice(bet, choice, v):
         else:
             mult = {1: 3, 2: 4, 3: 5, 4: 6, 5: 7}[v]
             win, result = bet * mult, "win"
-
     return round(win, 2), result
 
 
-# ============================================================
-#              2 КУБА
-# ============================================================
 def calc_2_dice(bet, choice, d1, d2):
     win, result = 0.0, "lose"
     both_even = d1 % 2 == 0 and d2 % 2 == 0
     both_odd  = d1 % 2 == 1 and d2 % 2 == 1
     both_high = d1 >= 4 and d2 >= 4
     both_low  = d1 <= 3 and d2 <= 3
-
     if choice == "even" and both_even:
         win, result = bet * 3.8, "win"
     elif choice == "odd" and both_odd:
@@ -104,9 +83,7 @@ def calc_2_dice(bet, choice, d1, d2):
     elif choice == "double" and d1 == d2:
         win, result = bet * 5.5, "win"
     elif choice == "sum_prod":
-        total = d1 + d2
-        prod = d1 * d2
-        if total == 10 or prod == 10:
+        if (d1 + d2) == 10 or (d1 * d2) == 10:
             win, result = bet * 17, "win"
     elif choice == "corridor" and 5 <= (d1 + d2) <= 9:
         win, result = bet * 11, "win"
@@ -120,13 +97,9 @@ def calc_2_dice(bet, choice, d1, d2):
         win, result = bet * 2.5, "win"
     elif choice == "sum7_greater" and (d1 + d2) > 7:
         win, result = bet * 2.5, "win"
-
     return round(win, 2), result
 
 
-# ============================================================
-#              3 КУБА
-# ============================================================
 def calc_3_dice(bet, choice, d1, d2, d3):
     dice = [d1, d2, d3]
     win, result = 0.0, "lose"
@@ -134,7 +107,6 @@ def calc_3_dice(bet, choice, d1, d2, d3):
     all_odd  = all(d % 2 == 1 for d in dice)
     all_high = all(d >= 4 for d in dice)
     all_low  = all(d <= 3 for d in dice)
-
     if choice == "even" and all_even:
         win, result = bet * 7.5, "win"
     elif choice == "odd" and all_odd:
@@ -151,96 +123,57 @@ def calc_3_dice(bet, choice, d1, d2, d3):
         win, result = bet * 33, "win"
     elif choice == "big" and max(dice) >= 6:
         win, result = bet * 3.6, "win"
-
     return round(win, 2), result
 
 
-# ============================================================
-#              СПОРТ (Telegram Dice)
-# ============================================================
 def calc_football(bet, choice, v):
-    if choice == "clean" and v == 5:
-        return round(bet * 4.7, 2), "win"
-    if choice == "any" and v in (3, 4, 5):
-        return round(bet * 2.5, 2), "win"
-    if choice == "stuck" and v == 3:
-        return round(bet * 4.7, 2), "win"
-    if choice == "miss" and v in (1, 2):
-        return round(bet * 1.6, 2), "win"
-    if choice == "multi" and v in (3, 4):
-        return round(bet * 4.7, 2), "win"
-    if choice == "double" and v == 5:
-        return round(bet * 23, 2), "win"
-    if choice == "sniper" and v == 5:
-        return round(bet * 1.5, 2), "win"
-    if choice == "ladder" and v in (4, 5):
-        return round(bet * 2.8, 2), "win"
+    if choice == "clean" and v == 5: return round(bet * 4.7, 2), "win"
+    if choice == "any" and v in (3, 4, 5): return round(bet * 2.5, 2), "win"
+    if choice == "stuck" and v == 3: return round(bet * 4.7, 2), "win"
+    if choice == "miss" and v in (1, 2): return round(bet * 1.6, 2), "win"
+    if choice == "multi" and v in (3, 4): return round(bet * 4.7, 2), "win"
+    if choice == "double" and v == 5: return round(bet * 23, 2), "win"
+    if choice == "sniper" and v == 5: return round(bet * 1.5, 2), "win"
+    if choice == "ladder" and v in (4, 5): return round(bet * 2.8, 2), "win"
     return 0.0, "lose"
 
 
 def calc_basketball(bet, choice, v):
-    if choice == "center" and v == 5:
-        return round(bet * 5.6, 2), "win"
-    if choice == "red" and v == 1:
-        return round(bet * 1.9, 2), "win"
-    if choice == "white" and v == 2:
-        return round(bet * 2.8, 2), "win"
-    if choice == "bounce" and v == 1:
-        return round(bet * 5.6, 2), "win"
-    if choice == "multi" and v == 4:
-        return round(bet * 5.6, 2), "win"
-    if choice == "double" and v == 5:
-        return round(bet * 33, 2), "win"
-    if choice == "ladder" and v in (3, 4):
-        return round(bet * 3.5, 2), "win"
-    if choice == "both" and v == 5:
-        return round(bet * 1.3, 2), "win"
-    if choice == "two_row" and v in (2, 3):
-        return round(bet * 2.5, 2), "win"
-    if choice == "traffic" and v == 4:
-        return round(bet * 2.7, 2), "win"
+    if choice == "center" and v == 5: return round(bet * 5.6, 2), "win"
+    if choice == "red" and v == 1: return round(bet * 1.9, 2), "win"
+    if choice == "white" and v == 2: return round(bet * 2.8, 2), "win"
+    if choice == "bounce" and v == 1: return round(bet * 5.6, 2), "win"
+    if choice == "multi" and v == 4: return round(bet * 5.6, 2), "win"
+    if choice == "double" and v == 5: return round(bet * 33, 2), "win"
+    if choice == "ladder" and v in (3, 4): return round(bet * 3.5, 2), "win"
+    if choice == "both" and v == 5: return round(bet * 1.3, 2), "win"
+    if choice == "two_row" and v in (2, 3): return round(bet * 2.5, 2), "win"
+    if choice == "traffic" and v == 4: return round(bet * 2.7, 2), "win"
     return 0.0, "lose"
 
 
 def calc_darts(bet, choice, v):
-    if choice == "center" and v == 2:
-        return round(bet * 4.7, 2), "win"
-    if choice == "nine" and v == 6:
-        return round(bet * 4.7, 2), "win"
-    if choice == "bar" and v == 5:
-        return round(bet * 2.5, 2), "win"
-    if choice == "miss" and v == 1:
-        return round(bet * 2.5, 2), "win"
-    if choice == "multi" and v in (3, 4):
-        return round(bet * 4.7, 2), "win"
-    if choice == "double" and v == 2:
-        return round(bet * 23, 2), "win"
-    if choice == "sniper" and v == 2:
-        return round(bet * 1.5, 2), "win"
-    if choice == "ladder" and v in (4, 5):
-        return round(bet * 2.3, 2), "win"
+    if choice == "center" and v == 2: return round(bet * 4.7, 2), "win"
+    if choice == "nine" and v == 6: return round(bet * 4.7, 2), "win"
+    if choice == "bar" and v == 5: return round(bet * 2.5, 2), "win"
+    if choice == "miss" and v == 1: return round(bet * 2.5, 2), "win"
+    if choice == "multi" and v in (3, 4): return round(bet * 4.7, 2), "win"
+    if choice == "double" and v == 2: return round(bet * 23, 2), "win"
+    if choice == "sniper" and v == 2: return round(bet * 1.5, 2), "win"
+    if choice == "ladder" and v in (4, 5): return round(bet * 2.3, 2), "win"
     return 0.0, "lose"
 
 
 def calc_bowling(bet, choice, v):
-    if choice == "strike" and v == 6:
-        return round(bet * 5.6, 2), "win"
-    if choice == "miss" and v == 1:
-        return round(bet * 5.6, 2), "win"
-    if choice == "multi" and v in (4, 5):
-        return round(bet * 5.6, 2), "win"
-    if choice == "double" and v == 6:
-        return round(bet * 33, 2), "win"
-    if choice == "ladder" and v in (4, 5, 6):
-        return round(bet * 3.5, 2), "win"
-    if choice == "sum" and v >= 4:
-        return round(bet * 8.1, 2), "win"
+    if choice == "strike" and v == 6: return round(bet * 5.6, 2), "win"
+    if choice == "miss" and v == 1: return round(bet * 5.6, 2), "win"
+    if choice == "multi" and v in (4, 5): return round(bet * 5.6, 2), "win"
+    if choice == "double" and v == 6: return round(bet * 33, 2), "win"
+    if choice == "ladder" and v in (4, 5, 6): return round(bet * 3.5, 2), "win"
+    if choice == "sum" and v >= 4: return round(bet * 8.1, 2), "win"
     return 0.0, "lose"
 
 
-# ============================================================
-#              СЛОТЫ
-# ============================================================
 SLOT_SYMBOLS = ["7️⃣", "🍇", "🍋", "BAR", "🔔", "💎"]
 
 
@@ -250,7 +183,6 @@ def spin_slots():
 
 def calc_slots(bet, choice, reels):
     win, result = 0.0, "lose"
-
     if choice == "777" and reels == ["7️⃣", "7️⃣", "7️⃣"]:
         win, result = bet * 60, "win"
     elif choice == "77x" and reels[0] == reels[1] == "7️⃣":
@@ -267,16 +199,11 @@ def calc_slots(bet, choice, reels):
         win, result = bet * 2.4, "win" if random.random() < 0.5 else "lose"
     elif choice == "ladder" and len(set(reels)) == 1:
         win, result = bet * 27, "win"
-
     return round(win, 2), result
 
 
-# ============================================================
-#              АРКАДЫ
-# ============================================================
 def mines_multiplier(mines, opened, total=25):
-    if opened == 0:
-        return 1.0
+    if opened == 0: return 1.0
     safe = total - mines
     try:
         prob = 1.0
@@ -290,32 +217,25 @@ def mines_multiplier(mines, opened, total=25):
 def tower_multiplier(level, difficulty="easy"):
     base = {"easy": 1.5, "medium": 2.0, "hard": 3.0, "extreme": 5.0}.get(difficulty, 1.5)
     m = 1.0
-    for _ in range(level):
-        m *= base
+    for _ in range(level): m *= base
     return round(m * (1 - HOUSE_EDGE), 2)
 
 
 def generate_crash_point():
     r = random.random()
-    if r < 0.05:
-        return 1.0
+    if r < 0.05: return 1.0
     return round(max(1.0, (1 / (1 - r)) * 0.95), 2)
 
 
 def keno_multiplier(hits, picks):
-    table = {
-        (10, 10): 100.0, (10, 9): 20.0, (10, 8): 5.0,
-        (8, 8): 50.0, (8, 7): 10.0,
-        (5, 5): 20.0, (5, 4): 5.0,
-        (3, 3): 10.0,
-    }
+    table = {(10, 10): 100.0, (10, 9): 20.0, (10, 8): 5.0,
+             (8, 8): 50.0, (8, 7): 10.0, (5, 5): 20.0, (5, 4): 5.0, (3, 3): 10.0}
     return round(table.get((picks, hits), 0.0) * (1 - HOUSE_EDGE), 2)
 
 
 def roulette_multiplier(bet, choice, number, color):
     if choice == color:
-        if color == "green":
-            return round(bet * 14, 2), "win"
+        if color == "green": return round(bet * 14, 2), "win"
         return round(bet * 2, 2), "win"
     if choice == "even" and number % 2 == 0 and number != 0:
         return round(bet * 2, 2), "win"

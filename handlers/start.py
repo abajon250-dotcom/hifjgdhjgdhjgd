@@ -26,15 +26,13 @@ def _main_text(uid, full_name):
     vip = db.get_vip_info(uid)
     next_name = vip["next"][1] if vip["next"] else "MAX"
     next_emoji = vip["next"][2] if vip["next"] else "👑"
-    return (
-        f"{PROFILE} <b>#{uid} {full_name}</b>\n\n"
-        f"{DOLLAR} <b>Баланс — {s['balance']:.2f}</b>\n\n"
-        f"{VIP} <b>VIP — {vip['progress']:.0f}%</b>\n"
-        f"{vip['current'][2]} {vip['current'][1]} → {next_emoji} {next_name}\n\n"
-        f"{FLY_MONEY} Оборот: <b>{s['total_wagered']:.2f}</b>\n"
-        f"{DICE} Игр: <b>{s['games_played']}</b>\n"
-        f"{TIME} Дней: <b>{s['days_registered']}</b>"
-    )
+    return (f"{PROFILE} <b>#{uid} {full_name}</b>\n\n"
+            f"{DOLLAR} <b>Баланс — {s['balance']:.2f}</b>\n\n"
+            f"{VIP} <b>VIP — {vip['progress']:.0f}%</b>\n"
+            f"{vip['current'][2]} {vip['current'][1]} → {next_emoji} {next_name}\n\n"
+            f"{FLY_MONEY} Оборот: <b>{s['total_wagered']:.2f}</b>\n"
+            f"{DICE} Игр: <b>{s['games_played']}</b>\n"
+            f"{TIME} Дней: <b>{s['days_registered']}</b>")
 
 
 def _wallet_kb():
@@ -46,8 +44,7 @@ def _wallet_kb():
                               icon_custom_emoji_id="5443127283898405358",
                               style="danger")],
         [InlineKeyboardButton(text="Назад", callback_data="back_to_main",
-                              style="danger")],
-    ])
+                              style="danger")]])
 
 
 def _wallet_text(uid):
@@ -55,67 +52,48 @@ def _wallet_text(uid):
     bal = db.get_balance(uid)
     bet = db.get_bet(uid)
     s = db.get_stats(uid)
-    return (
-        f"{WALLET} <b>Кошелёк</b>\n\n"
-        f"{DOLLAR} Баланс: <b>{bal:.2f}</b>\n"
-        f"{BET} Ставка: <b>{bet}</b>\n"
-        f"{FLY_MONEY} Оборот: <b>{s['total_wagered']:.2f}</b>\n"
-        f"{DICE} Игр: <b>{s['games_played']}</b>\n\n"
-        f"Выберите действие:"
-    )
+    return (f"{WALLET} <b>Кошелёк</b>\n\n"
+            f"{DOLLAR} Баланс: <b>{bal:.2f}</b>\n"
+            f"{BET} Ставка: <b>{bet}</b>\n"
+            f"{FLY_MONEY} Оборот: <b>{s['total_wagered']:.2f}</b>\n"
+            f"{DICE} Игр: <b>{s['games_played']}</b>\n\n"
+            f"Выберите действие:")
 
 
-# ============================================================
-#              /start — реф + промокод через ссылку
-# ============================================================
 @router.message(Command("start"), PVT)
 async def cmd_start(message: types.Message):
     uid = message.from_user.id
     if db.is_banned(uid):
         return await message.answer("🚫 Вы забанены.")
-
-    # Парсим payload ДО подписки
     args = message.text.split()
     if len(args) > 1:
         payload = args[1]
-        print(f"[start] uid={uid} payload={payload}")
-
-        # ---------- РЕФЕРАЛКА ----------
         if payload.startswith("ref"):
             try:
                 ref_id = int(payload.replace("ref", ""))
-                ok = db.set_referrer(uid, ref_id)
-                if ok:
-                    await message.answer(
-                        "🤝 <b>Вы пришли по реферальной ссылке!</b>",
-                        parse_mode="HTML")
+                if db.set_referrer(uid, ref_id):
+                    await message.answer("🤝 <b>Вы пришли по реферальной ссылке!</b>",
+                                         parse_mode="HTML")
             except Exception as e:
                 print(f"[start] ref error: {e}")
-
-        # ---------- ПРОМОКОД ----------
         elif payload.startswith("promo_") or payload.startswith("p_"):
             code = payload.split("_", 1)[1].strip().upper()
             info = db.get_promo_info(code)
-
             if not info:
-                await message.answer(
-                    f"❌ Промокод <code>{code}</code> не найден.",
-                    parse_mode="HTML")
+                await message.answer(f"❌ Промокод <code>{code}</code> не найден.",
+                                     parse_mode="HTML")
             elif info["uses_left"] <= 0:
-                await message.answer(
-                    f"❌ Промокод <code>{code}</code> закончился.",
-                    parse_mode="HTML")
+                await message.answer(f"❌ Промокод <code>{code}</code> закончился.",
+                                     parse_mode="HTML")
             else:
                 wager_line = ""
                 if info["required_wager"] > 0:
                     wager_line = (f"📊 Требуется оборот: "
                                   f"<b>{info['required_wager']:.2f}</b> USDT\n")
                 kb = InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(
-                        text="🎁 Активировать промокод",
-                        callback_data=f"activate_promo:{code}",
-                        style="success")],
-                ])
+                    [InlineKeyboardButton(text="🎁 Активировать промокод",
+                                          callback_data=f"activate_promo:{code}",
+                                          style="success")]])
                 await message.answer(
                     f"🎁 <b>Промокод найден!</b>\n\n"
                     f"💰 Сумма: <b>{info['amount']:.2f}</b> USDT\n"
@@ -126,60 +104,42 @@ async def cmd_start(message: types.Message):
                        if info["required_wager"] > 0 else "")
                     + f"\nНажми кнопку ниже 👇",
                     reply_markup=kb, parse_mode="HTML")
-
-    # Проверка подписки
     not_sub = await check_subscription(message.bot, uid)
     if not_sub and uid != ADMIN_ID:
         return await message.answer(subscribe_text(),
                                     reply_markup=subscribe_kb(),
                                     parse_mode="HTML")
-
     db.get_user(uid)
     db.set_username(uid, message.from_user.username or message.from_user.full_name)
     is_admin = (uid == ADMIN_ID)
-
     await message.answer(f"🎰 <b>{CASINO_NAME}</b>",
                          reply_markup=main_menu(is_admin), parse_mode="HTML")
     await safe_answer(message, _main_text(uid, message.from_user.full_name),
-                      reply_markup=main_menu_inline(is_admin),
-                      parse_mode="HTML")
+                      reply_markup=main_menu_inline(is_admin), parse_mode="HTML")
 
 
-# ============================================================
-#              АКТИВАЦИЯ ПРОМОКОДА (кнопка)
-# ============================================================
 @router.callback_query(F.data.startswith("activate_promo:"))
 async def activate_promo(call: types.CallbackQuery):
     code = call.data.split(":", 1)[1].upper()
     uid = call.from_user.id
-
-    # 1) Проверка подписки
     not_sub = await check_subscription(call.bot, uid)
     if not_sub and uid != ADMIN_ID:
         await call.answer("🔒 Сначала подпишись на каналы!", show_alert=True)
-        return await call.message.answer(
-            subscribe_text(),
-            reply_markup=subscribe_kb(),
-            parse_mode="HTML")
-
-    # 2) Проверка промокода
+        return await call.message.answer(subscribe_text(),
+                                         reply_markup=subscribe_kb(),
+                                         parse_mode="HTML")
     info = db.get_promo_info(code)
     if not info:
         return await call.answer("❌ Промокод не найден.", show_alert=True)
     if info["uses_left"] <= 0:
         return await call.answer("❌ Промокод закончился.", show_alert=True)
-
-    # 3) Проверка оборота
     s = db.get_stats(uid)
     if s["total_wagered"] < info["required_wager"]:
         need = info["required_wager"] - s["total_wagered"]
         return await call.answer(
             f"📊 Нужен оборот {info['required_wager']:.2f} USDT\n"
             f"У тебя: {s['total_wagered']:.2f}\n"
-            f"Осталось: {need:.2f}",
-            show_alert=True)
-
-    # 4) Активация
+            f"Осталось: {need:.2f}", show_alert=True)
     amount = db.use_promo(uid, code)
     if amount > 0:
         await call.message.edit_text(
@@ -201,14 +161,10 @@ async def check_sub_cb(call: types.CallbackQuery):
     is_admin = (call.from_user.id == ADMIN_ID)
     await safe_edit(call.message,
                     _main_text(call.from_user.id, call.from_user.full_name),
-                    reply_markup=main_menu_inline(is_admin),
-                    parse_mode="HTML")
+                    reply_markup=main_menu_inline(is_admin), parse_mode="HTML")
     await call.answer("✅ Спасибо за подписку!")
 
 
-# ============================================================
-#              REPLY-КНОПКИ
-# ============================================================
 @router.message(F.text.in_({"Баланс", "💰 Баланс", "Кошелёк", "💼 Кошелёк"}), PVT)
 async def btn_wallet(message: types.Message):
     await safe_answer(message, _wallet_text(message.from_user.id),
@@ -224,7 +180,7 @@ async def btn_play(message: types.Message):
         f"{GAMES} <b>Выбирайте игру для ставки!</b>\n\n"
         f"{DOLLAR} Баланс — <b>{bal:.2f}</b>\n"
         f"{BET} Ставка — <b>{bet}</b>",
-        reply_markup=games_main(), parse_mode="HTML")
+        reply_markup=games_main(uid), parse_mode="HTML")
 
 
 @router.message(F.text.in_({"Меню", "📋 Меню"}), PVT)
@@ -240,13 +196,9 @@ async def btn_menu(message: types.Message):
     db.get_user(uid)
     is_admin = (uid == ADMIN_ID)
     await safe_answer(message, _main_text(uid, message.from_user.full_name),
-                      reply_markup=main_menu_inline(is_admin),
-                      parse_mode="HTML")
+                      reply_markup=main_menu_inline(is_admin), parse_mode="HTML")
 
 
-# ============================================================
-#              INLINE CALLBACKS
-# ============================================================
 @router.callback_query(F.data == "back_to_main")
 async def back_to_main(call: types.CallbackQuery):
     uid = call.from_user.id
@@ -290,8 +242,7 @@ async def profile_cb(call: types.CallbackQuery):
         [InlineKeyboardButton(text="📊 Статистика", callback_data="stats",
                               style="primary")],
         [InlineKeyboardButton(text="Назад", callback_data="back_to_main",
-                              style="danger")],
-    ])
+                              style="danger")]])
     await safe_edit(call.message,
         f"{PROFILE} <b>Профиль</b>\n\n"
         f"{DOLLAR} Баланс: <b>{s['balance']:.2f}</b>\n"
@@ -307,8 +258,7 @@ async def profile_cb(call: types.CallbackQuery):
 @router.callback_query(F.data == "promo_enter")
 async def promo_enter(call: types.CallbackQuery):
     await call.message.answer(
-        "🎁 <b>Введите промокод</b>\n\n"
-        "Напиши в чат: <code>промо КОД</code>",
+        "🎁 <b>Введите промокод</b>\n\nНапиши в чат: <code>промо КОД</code>",
         reply_markup=back_menu(), parse_mode="HTML")
     await call.answer()
 
@@ -322,31 +272,28 @@ async def games_main_handler(call: types.CallbackQuery):
         f"{GAMES} <b>Выбирайте игру для ставки!</b>\n\n"
         f"{DOLLAR} Баланс — <b>{bal:.2f}</b>\n"
         f"{BET} Ставка — <b>{bet}</b>",
-        reply_markup=games_main(), parse_mode="HTML")
+        reply_markup=games_main(uid), parse_mode="HTML")
     await call.answer()
 
 
 @router.callback_query(F.data == "stats")
 async def stats_handler(call: types.CallbackQuery):
     s = db.get_stats(call.from_user.id)
-    text = (
-        f"{STATS} <b>Статистика</b>\n\n"
-        f"{DOLLAR} Баланс: <b>{s['balance']:.2f}</b>\n"
-        f"{FLY_MONEY} Оборот: <b>{s['total_wagered']:.2f}</b>\n"
-        f"✅ Выиграно: <b>{s['total_won']:.2f}</b>\n"
-        f"❌ Проиграно: <b>{s['total_lost']:.2f}</b>\n"
-        f"📥 Пополнено: <b>{s['total_deposited']:.2f}</b>\n"
-        f"📤 Выведено: <b>{s['total_withdrawn']:.2f}</b>\n"
-        f"{DICE} Игр: <b>{s['games_played']}</b>\n"
-        f"{REF} Приглашено: <b>{s['invited_count']}</b>"
-    )
+    text = (f"{STATS} <b>Статистика</b>\n\n"
+            f"{DOLLAR} Баланс: <b>{s['balance']:.2f}</b>\n"
+            f"{FLY_MONEY} Оборот: <b>{s['total_wagered']:.2f}</b>\n"
+            f"✅ Выиграно: <b>{s['total_won']:.2f}</b>\n"
+            f"❌ Проиграно: <b>{s['total_lost']:.2f}</b>\n"
+            f"📥 Пополнено: <b>{s['total_deposited']:.2f}</b>\n"
+            f"📤 Выведено: <b>{s['total_withdrawn']:.2f}</b>\n"
+            f"{DICE} Игр: <b>{s['games_played']}</b>\n"
+            f"{REF} Приглашено: <b>{s['invited_count']}</b>")
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="По играм", callback_data="stats_games",
                               icon_custom_emoji_id="5321230889357713132",
                               style="primary")],
         [InlineKeyboardButton(text="Назад", callback_data="back_to_main",
-                              style="danger")],
-    ])
+                              style="danger")]])
     await safe_edit(call.message, text, reply_markup=kb, parse_mode="HTML")
     await call.answer()
 
@@ -387,8 +334,7 @@ async def stats_games(call: types.CallbackQuery):
     sign = "🟢" if total >= 0 else "🔴"
     text += f"━━━━━━━━━━━━━━━━━━\n{sign} <b>Общий: {'+' if total >= 0 else ''}{total:.2f}</b>"
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Назад", callback_data="stats", style="danger")],
-    ])
+        [InlineKeyboardButton(text="Назад", callback_data="stats", style="danger")]])
     await safe_edit(call.message, text, reply_markup=kb, parse_mode="HTML")
     await call.answer()
 
@@ -418,13 +364,11 @@ async def referrals_handler(call: types.CallbackQuery):
     earned = db.get_ref_balance(uid)
     bot_info = await call.bot.get_me()
     link = f"https://t.me/{bot_info.username}?start=ref{uid}"
-    text = (
-        f"{REF} <b>Реферальная программа</b>\n\n"
-        f"{LINK} <code>{link}</code>\n\n"
-        f"👤 Приглашено: <b>{invited}</b>\n"
-        f"{DOLLAR} Заработано: <b>{earned:.2f}</b>\n\n"
-        f"💎 <b>3%</b> от каждого выигрыша реферала — вам на баланс!"
-    )
+    text = (f"{REF} <b>Реферальная программа</b>\n\n"
+            f"{LINK} <code>{link}</code>\n\n"
+            f"👤 Приглашено: <b>{invited}</b>\n"
+            f"{DOLLAR} Заработано: <b>{earned:.2f}</b>\n\n"
+            f"💎 <b>3%</b> от каждого выигрыша реферала — вам на баланс!")
     await safe_edit(call.message, text, reply_markup=referrals_menu(),
                     parse_mode="HTML")
     await call.answer()
@@ -453,9 +397,7 @@ async def ref_top(call: types.CallbackQuery):
                     parse_mode="HTML")
     await call.answer()
 
-# ============================================================
-#              ВЫВОД РЕФ-БАЛАНСА
-# ============================================================
+
 @router.callback_query(F.data == "ref:withdraw")
 async def ref_withdraw(call: types.CallbackQuery):
     uid = call.from_user.id
