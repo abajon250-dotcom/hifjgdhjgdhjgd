@@ -74,7 +74,7 @@ def games_main():
                               icon_custom_emoji_id="5309815458990433715"),
          InlineKeyboardButton(text="Авторские", callback_data="game:custom",
                               icon_custom_emoji_id="5309815458990433715")],
-        [InlineKeyboardButton(text="Onyx | NEWS", url="https://t.me/+fSU_c6-PKwFhNjhi")],
+        [InlineKeyboardButton(text="CatHome | NEWS", url="https://t.me/your_channel")],
     ])
 
 
@@ -83,7 +83,7 @@ def games_menu():
 
 
 # ============================================================
-#                    КУБИКИ
+#                    КУБИКИ — табы
 # ============================================================
 def _dice_tabs(active: int):
     return [
@@ -114,8 +114,7 @@ def dice_menu_1():
         [InlineKeyboardButton(text="Лесенка (до x2)", callback_data="d1:ladder1"),
          InlineKeyboardButton(text="Лесенка (до x2.8)", callback_data="d1:ladder2")],
         [InlineKeyboardButton(text="💥 ВБ — весь баланс",
-                              callback_data="d1:allin",
-                              style="danger")],
+                              callback_data="d1:allin", style="danger")],
         [InlineKeyboardButton(text="Назад", callback_data="games_main",
                               style="danger")],
     ])
@@ -124,7 +123,7 @@ def dice_menu_1():
 def dice_menu_2():
     return InlineKeyboardMarkup(inline_keyboard=[
         _dice_tabs(2),
-        [InlineKeyboardButton(text="Чёт (x3.8)",   callback_data="d2:even"),
+        [InlineKeyboardButton(text="Чёт (x3.8)", callback_data="d2:even"),
          InlineKeyboardButton(text="Нечёт (x3.8)", callback_data="d2:odd")],
         [InlineKeyboardButton(text="Больше (x3.8)", callback_data="d2:more"),
          InlineKeyboardButton(text="Меньше (x3.8)", callback_data="d2:less")],
@@ -135,7 +134,8 @@ def dice_menu_2():
          InlineKeyboardButton(text="5 (x33)", callback_data="d2:num5"),
          InlineKeyboardButton(text="6 (x33)", callback_data="d2:num6")],
         [InlineKeyboardButton(text="Любой дубль (x5.5)", callback_data="d2:double")],
-        [InlineKeyboardButton(text="Сумма/Произведение (до x17)", callback_data="d2:sum_prod")],
+        [InlineKeyboardButton(text="Сумма/Произведение (до x17)",
+                              callback_data="d2:sum_prod")],
         [InlineKeyboardButton(text="Коридор (до x11)", callback_data="d2:corridor")],
         [InlineKeyboardButton(text="Снайпер (x3)", callback_data="d2:sniper"),
          InlineKeyboardButton(text="Лифт (x2.2)", callback_data="d2:lift")],
@@ -147,7 +147,7 @@ def dice_menu_2():
 def dice_menu_3():
     return InlineKeyboardMarkup(inline_keyboard=[
         _dice_tabs(3),
-        [InlineKeyboardButton(text="Чёт (x7.5)",   callback_data="d3:even"),
+        [InlineKeyboardButton(text="Чёт (x7.5)", callback_data="d3:even"),
          InlineKeyboardButton(text="Нечёт (x7.5)", callback_data="d3:odd")],
         [InlineKeyboardButton(text="Больше (x7.5)", callback_data="d3:more"),
          InlineKeyboardButton(text="Меньше (x7.5)", callback_data="d3:less")],
@@ -176,44 +176,47 @@ def dice3_choices():   return dice_menu_3()
 def football_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Чистый гол (x4.7)", callback_data="fc:clean"),
-         InlineKeyboardButton(text="Любой гол (x2.5)",  callback_data="fc:any")],
+         InlineKeyboardButton(text="Любой гол (x2.5)", callback_data="fc:any")],
         [InlineKeyboardButton(text="Застрял мяч (x4.7)", callback_data="fc:stuck"),
-         InlineKeyboardButton(text="Промах (x1.6)",      callback_data="fc:miss")],
+         InlineKeyboardButton(text="Промах (x1.6)", callback_data="fc:miss")],
         [InlineKeyboardButton(text="Выбор исходов (до x4.7)", callback_data="fc:multi")],
         [InlineKeyboardButton(text="Дубль (до x23)", callback_data="fc:double")],
         [InlineKeyboardButton(text="Снайпер (до x1.5)", callback_data="fc:sniper")],
         [InlineKeyboardButton(text="Лесенка (до x2.8)", callback_data="fc:ladder")],
-        [InlineKeyboardButton(text="Назад", callback_data="games_main", style="danger")],
+        [InlineKeyboardButton(text="Назад", callback_data="games_main",
+                              style="danger")],
     ])
 
 
 def basketball_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Центр (x5.6)",   callback_data="bc:center"),
+        [InlineKeyboardButton(text="Центр (x5.6)", callback_data="bc:center"),
          InlineKeyboardButton(text="Красный (x1.9)", callback_data="bc:red")],
-        [InlineKeyboardButton(text="Белый (x2.8)",  callback_data="bc:white"),
+        [InlineKeyboardButton(text="Белый (x2.8)", callback_data="bc:white"),
          InlineKeyboardButton(text="Отскок (x5.6)", callback_data="bc:bounce")],
         [InlineKeyboardButton(text="Выбор исходов (до x5.6)", callback_data="bc:multi")],
         [InlineKeyboardButton(text="Дубль (до x33)", callback_data="bc:double")],
         [InlineKeyboardButton(text="Лесенка (до x3.5)", callback_data="bc:ladder"),
          InlineKeyboardButton(text="Оба попал (x1.3)", callback_data="bc:both")],
         [InlineKeyboardButton(text="Две рядом (x2.5)", callback_data="bc:two_row"),
-         InlineKeyboardButton(text="Светофор (x2.7)",  callback_data="bc:traffic")],
-        [InlineKeyboardButton(text="Назад", callback_data="games_main", style="danger")],
+         InlineKeyboardButton(text="Светофор (x2.7)", callback_data="bc:traffic")],
+        [InlineKeyboardButton(text="Назад", callback_data="games_main",
+                              style="danger")],
     ])
 
 
 def darts_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Центр (x4.7)",   callback_data="dc:center"),
+        [InlineKeyboardButton(text="Центр (x4.7)", callback_data="dc:center"),
          InlineKeyboardButton(text="Девятка (x4.7)", callback_data="dc:nine")],
-        [InlineKeyboardButton(text="Штанга (x2.5)",  callback_data="dc:bar"),
-         InlineKeyboardButton(text="Промах (x2.5)",  callback_data="dc:miss")],
+        [InlineKeyboardButton(text="Штанга (x2.5)", callback_data="dc:bar"),
+         InlineKeyboardButton(text="Промах (x2.5)", callback_data="dc:miss")],
         [InlineKeyboardButton(text="Выбор исходов (до x4.7)", callback_data="dc:multi")],
         [InlineKeyboardButton(text="Дубль (до x23)", callback_data="dc:double")],
         [InlineKeyboardButton(text="Снайпер (до x1.5)", callback_data="dc:sniper")],
         [InlineKeyboardButton(text="Лесенка (до x2.3)", callback_data="dc:ladder")],
-        [InlineKeyboardButton(text="Назад", callback_data="games_main", style="danger")],
+        [InlineKeyboardButton(text="Назад", callback_data="games_main",
+                              style="danger")],
     ])
 
 
@@ -222,10 +225,11 @@ def bowling_menu():
         [InlineKeyboardButton(text="Страйк (x5.6)", callback_data="wc:strike"),
          InlineKeyboardButton(text="Промах (x5.6)", callback_data="wc:miss")],
         [InlineKeyboardButton(text="Выбор исходов (до x5.6)", callback_data="wc:multi")],
-        [InlineKeyboardButton(text="Дубль (до x33)",   callback_data="wc:double"),
+        [InlineKeyboardButton(text="Дубль (до x33)", callback_data="wc:double"),
          InlineKeyboardButton(text="Лесенка (до x3.5)", callback_data="wc:ladder")],
         [InlineKeyboardButton(text="Сумма сбитых (до x8.1)", callback_data="wc:sum")],
-        [InlineKeyboardButton(text="Назад", callback_data="games_main", style="danger")],
+        [InlineKeyboardButton(text="Назад", callback_data="games_main",
+                              style="danger")],
     ])
 
 
@@ -238,11 +242,12 @@ def slots_menu():
          InlineKeyboardButton(text="77* (x15)", callback_data="sl:77x")],
         [InlineKeyboardButton(text="Любая комбинация (x15)", callback_data="sl:any")],
         [InlineKeyboardButton(text="Лаки 7 (до x370)", callback_data="sl:lucky7"),
-         InlineKeyboardButton(text="Линии (до x150)",  callback_data="sl:lines")],
-        [InlineKeyboardButton(text="Сумма (до x6)",    callback_data="sl:sum"),
+         InlineKeyboardButton(text="Линии (до x150)", callback_data="sl:lines")],
+        [InlineKeyboardButton(text="Сумма (до x6)", callback_data="sl:sum"),
          InlineKeyboardButton(text="Копилка (до x2.4)", callback_data="sl:piggy")],
         [InlineKeyboardButton(text="Лесенка (до x27)", callback_data="sl:ladder")],
-        [InlineKeyboardButton(text="Назад", callback_data="games_main", style="danger")],
+        [InlineKeyboardButton(text="Назад", callback_data="games_main",
+                              style="danger")],
     ])
 
 
@@ -251,12 +256,13 @@ def slots_menu():
 # ============================================================
 def arcades_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Mines",    callback_data="ar:mines"),
-         InlineKeyboardButton(text="Dice",     callback_data="ar:dice")],
+        [InlineKeyboardButton(text="Mines", callback_data="ar:mines"),
+         InlineKeyboardButton(text="Dice", callback_data="ar:dice")],
         [InlineKeyboardButton(text="Coinflip", callback_data="ar:coinflip"),
-         InlineKeyboardButton(text="Tower",    callback_data="ar:tower")],
+         InlineKeyboardButton(text="Tower", callback_data="ar:tower")],
         [InlineKeyboardButton(text="Рулетка", callback_data="ar:roulette")],
-        [InlineKeyboardButton(text="Назад", callback_data="games_main", style="danger")],
+        [InlineKeyboardButton(text="Назад", callback_data="games_main",
+                              style="danger")],
     ])
 
 
@@ -304,11 +310,11 @@ def deposit_menu():
 def deposit_amounts(method):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="0.5 USDT", callback_data=f"depamt:{method}:0.5"),
-         InlineKeyboardButton(text="1 USDT",   callback_data=f"depamt:{method}:1")],
-        [InlineKeyboardButton(text="5 USDT",   callback_data=f"depamt:{method}:5"),
-         InlineKeyboardButton(text="10 USDT",  callback_data=f"depamt:{method}:10")],
-        [InlineKeyboardButton(text="25 USDT",  callback_data=f"depamt:{method}:25"),
-         InlineKeyboardButton(text="50 USDT",  callback_data=f"depamt:{method}:50")],
+         InlineKeyboardButton(text="1 USDT", callback_data=f"depamt:{method}:1")],
+        [InlineKeyboardButton(text="5 USDT", callback_data=f"depamt:{method}:5"),
+         InlineKeyboardButton(text="10 USDT", callback_data=f"depamt:{method}:10")],
+        [InlineKeyboardButton(text="25 USDT", callback_data=f"depamt:{method}:25"),
+         InlineKeyboardButton(text="50 USDT", callback_data=f"depamt:{method}:50")],
         [InlineKeyboardButton(text="Своя сумма", callback_data=f"depcustom:{method}",
                               style="success")],
         [InlineKeyboardButton(text="Назад", callback_data="deposit", style="danger")],
@@ -376,10 +382,10 @@ def currency_menu():
 def quick_bet_menu(currency: str = "usd"):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="0.5", callback_data="qb:0.5"),
-         InlineKeyboardButton(text="1",   callback_data="qb:1"),
-         InlineKeyboardButton(text="5",   callback_data="qb:5")],
-        [InlineKeyboardButton(text="10",  callback_data="qb:10"),
-         InlineKeyboardButton(text="50",  callback_data="qb:50")],
+         InlineKeyboardButton(text="1", callback_data="qb:1"),
+         InlineKeyboardButton(text="5", callback_data="qb:5")],
+        [InlineKeyboardButton(text="10", callback_data="qb:10"),
+         InlineKeyboardButton(text="50", callback_data="qb:50")],
         [InlineKeyboardButton(text="Своя ставка", callback_data="qb:custom",
                               style="success")],
         [InlineKeyboardButton(text="Отмена", callback_data="games_main",

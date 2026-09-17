@@ -10,25 +10,21 @@ from utils.notify import notify_result
 router = Router()
 
 
-def _parse_uid(call: types.CallbackQuery) -> int:
-    """Берёт uid из callback_data если есть, иначе из from_user."""
+def _parse_uid(call):
     parts = call.data.split(":")
     if parts and parts[-1].isdigit() and len(parts[-1]) > 5:
         return int(parts[-1])
     return call.from_user.id
 
 
-def _check_owner(call: types.CallbackQuery, uid: int) -> bool:
+def _check_owner(call, uid):
     return call.from_user.id == uid
 
 
-async def _not_owner(call: types.CallbackQuery):
+async def _not_owner(call):
     await call.answer("❌ Это не твоя игра! Напиши свою команду.", show_alert=True)
 
 
-# ============================================================
-#                    ТАБЫ
-# ============================================================
 @router.callback_query(F.data == "dice:1")
 async def tab_1(call: types.CallbackQuery):
     await call.message.edit_text(f"{DICE} <b>Выберите исход игры!</b>",
@@ -50,9 +46,6 @@ async def tab_3(call: types.CallbackQuery):
     await call.answer()
 
 
-# ============================================================
-#              ВБ — ВЕСЬ БАЛАНС
-# ============================================================
 @router.callback_query(F.data == "d1:allin")
 async def d1_allin(call: types.CallbackQuery):
     uid = call.from_user.id
@@ -67,9 +60,6 @@ async def d1_allin(call: types.CallbackQuery):
     await call.answer("ВБ!")
 
 
-# ============================================================
-#                    ЗАПУСК
-# ============================================================
 @router.callback_query(F.data.startswith("d1:"))
 async def play_1(call: types.CallbackQuery):
     if call.data == "d1:allin":
@@ -102,9 +92,6 @@ async def play_3(call: types.CallbackQuery):
     await _play(call, uid, 3, choice)
 
 
-# ============================================================
-#              ИГРА НА 2 ЧИСЛА
-# ============================================================
 @router.callback_query(F.data.startswith("d1two:"))
 async def play_1_two(call: types.CallbackQuery):
     parts = call.data.split(":")
@@ -123,8 +110,7 @@ async def play_1_two(call: types.CallbackQuery):
     db.inc_games(uid)
 
     await call.message.edit_text(
-        f"{DICE} Бросаю... Ставка: <b>{bet}</b> {DOLLAR}",
-        parse_mode="HTML")
+        f"{DICE} Бросаю... Ставка: <b>{bet}</b> {DOLLAR}", parse_mode="HTML")
     await call.answer()
 
     m = await call.message.answer_dice(emoji="🎲")
@@ -142,10 +128,7 @@ async def play_1_two(call: types.CallbackQuery):
                   2.8 if result == "win" else 0)
 
 
-# ============================================================
-#                    ОСНОВНАЯ ЛОГИКА
-# ============================================================
-async def _play(call: types.CallbackQuery, uid: int, dtype: int, choice: str):
+async def _play(call, uid, dtype, choice):
     bet = db.get_bet(uid)
     if not db.has_enough(uid, bet):
         return await call.answer(
@@ -157,8 +140,7 @@ async def _play(call: types.CallbackQuery, uid: int, dtype: int, choice: str):
     db.inc_games(uid)
 
     await call.message.edit_text(
-        f"{DICE} Бросаю... Ставка: <b>{bet}</b> {DOLLAR}",
-        parse_mode="HTML")
+        f"{DICE} Бросаю... Ставка: <b>{bet}</b> {DOLLAR}", parse_mode="HTML")
     await call.answer()
 
     if dtype == 1:
@@ -190,9 +172,6 @@ async def _play(call: types.CallbackQuery, uid: int, dtype: int, choice: str):
     await _finish(call, uid, f"dice_{dtype}", value, bet, win, result, mult)
 
 
-# ============================================================
-#              ФИНИШ + УВЕДОМЛЕНИЕ В КАНАЛ
-# ============================================================
 async def _finish(call, uid, game_key, value, bet, win, result, mult):
     row = db.cursor.execute("SELECT username FROM users WHERE user_id=?",
                              (uid,)).fetchone()
@@ -219,16 +198,11 @@ async def _finish(call, uid, game_key, value, bet, win, result, mult):
             f"{WALLET} Баланс: <b>{new_bal:.2f}</b> {DOLLAR}</blockquote>",
             reply_markup=kb, parse_mode="HTML")
 
-        # ⚠️ УВЕДОМЛЕНИЕ В КАНАЛ (выигрыш)
         try:
-            await notify_result(
-                call.bot, uid, uname,
-                "Кубик", str(value),
-                bet, win, mult, new_bal, True
-            )
+            await notify_result(call.bot, uid, uname, "Кубик", str(value),
+                                bet, win, mult, new_bal, True)
         except Exception as e:
             print(f"notify_win: {e}")
-
     else:
         db.add_loss(uid, bet)
         db.add_game(uid, game_key, bet, 0, 0, "lose")
@@ -241,12 +215,8 @@ async def _finish(call, uid, game_key, value, bet, win, result, mult):
             f"{WALLET} Баланс: <b>{new_bal:.2f}</b> {DOLLAR}</blockquote>",
             reply_markup=kb, parse_mode="HTML")
 
-        # ⚠️ УВЕДОМЛЕНИЕ В КАНАЛ (проигрыш)
         try:
-            await notify_result(
-                call.bot, uid, uname,
-                "Кубик", str(value),
-                bet, 0, 0, new_bal, False
-            )
+            await notify_result(call.bot, uid, uname, "Кубик", str(value),
+                                bet, 0, 0, new_bal, False)
         except Exception as e:
             print(f"notify_lose: {e}")

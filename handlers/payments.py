@@ -28,21 +28,43 @@ class DepositState(StatesGroup):
 
 @router.callback_query(F.data == "deposit")
 async def deposit_handler(call: types.CallbackQuery):
-    await call.message.edit_text(
-        f"📤 <b>Пополнение баланса</b>\n\n"
-        f"⚠️ Комиссия: <b>5%</b> | Минимум: <b>0.5 USDT</b>\n\n"
-        f"Выберите способ:",
-        reply_markup=deposit_menu(), parse_mode="HTML"
+    uid = call.from_user.id
+    db.get_user(uid)
+    bal = db.get_balance(uid)
+    bet = db.get_bet(uid)
+    s = db.get_stats(uid)
+
+    text = (
+        f"📤 <b>ПОПОЛНЕНИЕ БАЛАНСА</b>\n\n"
+        f"💰 <b>Баланс:</b> {bal:.2f} USDT\n"
+        f"🎯 <b>Ставка:</b> {bet} USDT\n"
+        f"📊 <b>Оборот:</b> {s['total_wagered']:.2f} USDT\n"
+        f"📥 <b>Пополнено всего:</b> {s['total_deposited']:.2f} USDT\n\n"
+        f"⚠️ <b>Комиссия:</b> 5% | 💵 <b>Минимум:</b> 0.5 USDT\n\n"
+        f"<b>Выберите способ 👇</b>"
     )
+    await call.message.edit_text(text, reply_markup=deposit_menu(),
+                                 parse_mode="HTML")
     await call.answer()
 
 
-@router.message(F.text.in_({"📤 Пополнить", "Пополнить", "пополнить"}))
+@router.message(F.text.in_({"📤 Пополнить", "Пополнить", "пополнить", "деп"}))
 async def deposit_msg(message: types.Message):
-    await safe_answer(message,
-                      f"📤 <b>Пополнение баланса</b>\n\n"
-                      f"⚠️ Комиссия: <b>5%</b> | Минимум: <b>0.5 USDT</b>",
-                      reply_markup=deposit_menu(), parse_mode="HTML")
+    uid = message.from_user.id
+    db.get_user(uid)
+    bal = db.get_balance(uid)
+    bet = db.get_bet(uid)
+    s = db.get_stats(uid)
+
+    text = (
+        f"📤 <b>ПОПОЛНЕНИЕ БАЛАНСА</b>\n\n"
+        f"💰 <b>Баланс:</b> {bal:.2f} USDT\n"
+        f"🎯 <b>Ставка:</b> {bet} USDT\n"
+        f"📊 <b>Оборот:</b> {s['total_wagered']:.2f} USDT\n\n"
+        f"⚠️ <b>Комиссия:</b> 5% | 💵 <b>Минимум:</b> 0.5 USDT\n\n"
+        f"<b>Выберите способ 👇</b>"
+    )
+    await message.answer(text, reply_markup=deposit_menu(), parse_mode="HTML")
 
 
 @router.callback_query(F.data.startswith("dep:"))

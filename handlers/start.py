@@ -66,7 +66,7 @@ def _wallet_text(uid):
 
 
 # ============================================================
-#                       /start (только ЛС)
+#              /start с парсингом промокода и рефералки
 # ============================================================
 @router.message(Command("start"), PVT)
 async def cmd_start(message: types.Message):
@@ -80,21 +80,38 @@ async def cmd_start(message: types.Message):
                                     reply_markup=subscribe_kb(),
                                     parse_mode="HTML")
 
+    # ============= ПАРСИНГ PAYLOAD =============
     args = message.text.split()
-    if len(args) > 1 and args[1].startswith("ref"):
-        try:
-            db.set_referrer(uid, int(args[1].replace("ref", "")))
-        except Exception:
-            pass
+    if len(args) > 1:
+        payload = args[1]
+
+        # Реферальная ссылка: ref123456
+        if payload.startswith("ref"):
+            try:
+                db.set_referrer(uid, int(payload.replace("ref", "")))
+            except Exception:
+                pass
+
+        # Промокод: promo_КОД или p_КОД
+        elif payload.startswith("promo_") or payload.startswith("p_"):
+            code = payload.split("_", 1)[1].strip().upper()
+            amount = db.use_promo(uid, code)
+            if amount > 0:
+                await message.answer(
+                    f"🎁 <b>Промокод активирован!</b>\n\n"
+                    f"💰 Зачислено: <b>+{amount:.2f}</b> USDT",
+                    parse_mode="HTML")
+            else:
+                await message.answer(
+                    f"❌ Промокод <code>{code}</code> не найден или уже использован.",
+                    parse_mode="HTML")
 
     db.get_user(uid)
     db.set_username(uid, message.from_user.username or "Игрок")
     is_admin = (uid == ADMIN_ID)
 
-    # Reply-клавиатура ТОЛЬКО в ЛС (при /start)
     await message.answer(f"🎰 <b>{CASINO_NAME}</b>",
                          reply_markup=main_menu(is_admin), parse_mode="HTML")
-
     await safe_answer(message, _main_text(uid, message.from_user.full_name),
                       reply_markup=main_menu_inline(is_admin),
                       parse_mode="HTML")
@@ -114,12 +131,11 @@ async def check_sub_cb(call: types.CallbackQuery):
 
 
 # ============================================================
-#              REPLY-КНОПКИ (только ЛС)
+#              REPLY-КНОПКИ
 # ============================================================
 @router.message(F.text.in_({"Баланс", "💰 Баланс", "Кошелёк", "💼 Кошелёк"}), PVT)
 async def btn_wallet(message: types.Message):
-    uid = message.from_user.id
-    await safe_answer(message, _wallet_text(uid),
+    await safe_answer(message, _wallet_text(message.from_user.id),
                       reply_markup=_wallet_kb(), parse_mode="HTML")
 
 
@@ -265,7 +281,6 @@ GAME_LABELS = {
     "sport_darts": ("Дартс", DARTS), "sport_bowling": ("Боулинг", BOWLING),
     "slots": ("Слоты", SLOTS), "mines": ("Мины", "💣"), "tower": ("Башня", "🏰"),
     "crash": ("Краш", "🚀"), "keno": ("Кено", "🎯"), "roulette": ("Рулетка", "🎡"),
-    "dice_arcade": ("Dice", DICE), "coinflip": ("Coinflip", "🪙"),
 }
 
 
@@ -329,7 +344,8 @@ async def referrals_handler(call: types.CallbackQuery):
     text = (f"{REF} <b>Реферальная программа</b>\n\n"
             f"{LINK} <code>{link}</code>\n\n"
             f"👤 Приглашено: <b>{invited}</b>\n"
-            f"{DOLLAR} С рефов: <b>{db.get_ref_balance(uid):.2f}</b>")
+            f"{DOLLAR} С рефов: <b>{db.get_ref_balance(uid):.2f}</b>\n\n"
+            f"💎 <b>10%</b> от оборота каждого реферала идёт вам на баланс!")
     await safe_edit(call.message, text, reply_markup=referrals_menu(),
                     parse_mode="HTML")
     await call.answer()
