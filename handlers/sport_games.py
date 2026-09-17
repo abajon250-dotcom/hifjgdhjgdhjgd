@@ -13,8 +13,8 @@ from utils.user_state import get_bet
 
 router = Router()
 
-GAME_LABEL = {"football": "футбол", "basketball": "баскет",
-              "darts": "дартс", "bowling": "боулинг"}
+GAME_LABEL = {"football": "Футбол", "basketball": "Баскет",
+              "darts": "Дартс", "bowling": "Боулинг"}
 
 TEXT_FN = {"football": football_text, "basketball": basketball_text,
            "darts": darts_text, "bowling": bowling_text}
@@ -84,9 +84,8 @@ async def _play(call, uid, game, emoji, choice, calc_fn):
     try:
         row = db.cursor.execute("SELECT username FROM users WHERE user_id=?", (uid,)).fetchone()
         uname = row[0] if row and row[0] else f"id{uid}"
-        await notify_bet(call.bot, uid, uname, game.capitalize(), bet, emoji)
-    except Exception:
-        pass
+        await notify_bet(call.bot, uid, uname, GAME_LABEL[game], bet, emoji)
+    except Exception: pass
 
     await _bet_msg(call.message, uid, bet, GAME_LABEL[game])
     await call.answer()
@@ -123,7 +122,7 @@ async def _play(call, uid, game, emoji, choice, calc_fn):
             f"{WALLET} Баланс: <b>{new_bal:.2f}</b> {DOLLAR}</blockquote>",
             reply_markup=kb, parse_mode="HTML")
         try:
-            await notify_result(call.bot, uid, uname, game.capitalize(),
+            await notify_result(call.bot, uid, uname, GAME_LABEL[game],
                                 choice, bet, credited, mult, new_bal, True)
         except Exception: pass
     else:
@@ -137,7 +136,7 @@ async def _play(call, uid, game, emoji, choice, calc_fn):
             f"{WALLET} Баланс: <b>{new_bal:.2f}</b> {DOLLAR}</blockquote>",
             reply_markup=kb, parse_mode="HTML")
         try:
-            await notify_result(call.bot, uid, uname, game.capitalize(),
+            await notify_result(call.bot, uid, uname, GAME_LABEL[game],
                                 choice, bet, 0, 0, new_bal, False)
         except Exception: pass
 
@@ -161,7 +160,7 @@ async def play_sport_direct(message: types.Message, game: str, choice: str, uid:
     try:
         row = db.cursor.execute("SELECT username FROM users WHERE user_id=?", (uid,)).fetchone()
         uname = row[0] if row and row[0] else f"id{uid}"
-        await notify_bet(message.bot, uid, uname, game.capitalize(), bet, emoji)
+        await notify_bet(message.bot, uid, uname, GAME_LABEL[game], bet, emoji)
     except Exception: pass
 
     await _bet_msg(message, uid, bet, GAME_LABEL[game])
@@ -202,7 +201,7 @@ async def play_sport_direct(message: types.Message, game: str, choice: str, uid:
             f"{WALLET} Баланс: <b>{new_bal:.2f}</b> {DOLLAR}</blockquote>",
             reply_markup=kb, parse_mode="HTML")
         try:
-            await notify_result(message.bot, uid, uname, game.capitalize(),
+            await notify_result(message.bot, uid, uname, GAME_LABEL[game],
                                 choice, bet, credited, mult, new_bal, True)
         except Exception: pass
     else:
@@ -216,6 +215,6 @@ async def play_sport_direct(message: types.Message, game: str, choice: str, uid:
             f"{WALLET} Баланс: <b>{new_bal:.2f}</b> {DOLLAR}</blockquote>",
             reply_markup=kb, parse_mode="HTML")
         try:
-            await notify_result(message.bot, uid, uname, game.capitalize(),
+            await notify_result(message.bot, uid, uname, GAME_LABEL[game],
                                 choice, bet, 0, 0, new_bal, False)
         except Exception: pass

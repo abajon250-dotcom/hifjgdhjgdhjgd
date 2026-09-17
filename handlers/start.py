@@ -247,6 +247,10 @@ async def cmd_start(message: types.Message):
             except Exception as e:
                 print(f"[start] chat ref error: {e}")
 
+    # ВАЖНО: сохраняем username ДО проверки подписки
+    db.get_user(uid)
+    db.set_username(uid, message.from_user.username or message.from_user.full_name)
+
     # Проверка подписки
     not_sub = await check_subscription(message.bot, uid)
     if not_sub and uid != ADMIN_ID:
@@ -254,8 +258,6 @@ async def cmd_start(message: types.Message):
                                     reply_markup=subscribe_kb(),
                                     parse_mode="HTML")
 
-    db.get_user(uid)
-    db.set_username(uid, message.from_user.username or message.from_user.full_name)
     is_admin = (uid == ADMIN_ID)
 
     await message.answer(f"🎰 <b>{CASINO_NAME}</b>",

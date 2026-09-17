@@ -574,4 +574,30 @@ async def replay_game(call: types.CallbackQuery):
     elif game_type == "slots":
         from handlers.slots import play_slots_direct
         await play_slots_direct(call.message, choice, uid=uid)
+    elif game_type == "mines":
+        from handlers.arcades import _start_mines
+        try:
+            mines = int(choice)
+        except Exception:
+            mines = 5
+        await _start_mines(call.message, uid, mines)
+    elif game_type == "tower":
+        from handlers.arcades import open_tower, _parse_uid
+        bet = db.get_bet(uid)
+        if not db.has_enough(uid, bet):
+            await call.answer(f"❌ Нужно {bet} 💵", show_alert=True)
+            return
+        db.update_balance(uid, -bet)
+        db.add_wager(uid, bet)
+        db.inc_games(uid)
+        db.set_active_game(uid, "tower", "playing", bet, 1.0, "0")
+        from handlers.arcades import _render_tower
+        await _render_tower(call.message, uid)
+    elif game_type == "crash":
+        from handlers.arcades import start_crash_direct
+        bet = db.get_bet(uid)
+        if not db.has_enough(uid, bet):
+            await call.answer(f"❌ Нужно {bet} 💵", show_alert=True)
+            return
+        await start_crash_direct(call.message, uid, bet)
     await call.answer()

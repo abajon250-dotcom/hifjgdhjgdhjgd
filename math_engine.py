@@ -13,6 +13,8 @@ MIN_DEPOSIT = 0.2
 MIN_WITHDRAW = 1.0
 WIN_COMMISSION = 0.10
 
+SPORT_MULT = 5.5  # ×5.5 на любой выигрыш в спорте
+
 
 def stars_to_usd(stars): return round(stars * STARS_TO_USD, 2)
 def usd_to_stars(usd):   return round(usd / STARS_TO_USD, 2)
@@ -105,21 +107,20 @@ def calc_3_dice(bet, choice, d1, d2, d3):
 
 
 # ============================================================
-#              ФУТБОЛ (Telegram Dice: 1-5)
-#              1-2 = мимо, 3 = штанга, 4 = от штанги, 5 = центр
+#              СПОРТ — все выигрыши ×5.5
 # ============================================================
 def calc_football(bet, choice, v):
     win, result = 0.0, "lose"
     if choice == "mimo" and v in (1, 2):
-        win, result = bet * 3.0, "win"
+        win, result = bet * SPORT_MULT, "win"
     elif choice == "shtanga" and v == 3:
-        win, result = bet * 4.0, "win"
+        win, result = bet * SPORT_MULT, "win"
     elif choice == "center" and v == 5:
-        win, result = bet * 2.0, "win"
+        win, result = bet * SPORT_MULT, "win"
     elif choice == "from_shtanga" and v == 4:
-        win, result = bet * 3.5, "win"
+        win, result = bet * SPORT_MULT, "win"
     elif choice == "corner" and v == 4:
-        win, result = bet * 1.8, "win"
+        win, result = bet * SPORT_MULT, "win"
     return round(win, 2), result
 
 
@@ -130,21 +131,13 @@ def football_text(v):
     return "⚽ Гол в центр"
 
 
-# ============================================================
-#              БАСКЕТ (Telegram Dice: 1-5)
-# ============================================================
 def calc_basketball(bet, choice, v):
     win, result = 0.0, "lose"
-    if choice == "otskok" and v == 1:
-        win, result = bet * 3.0, "win"
-    elif choice == "blizko" and v == 4:
-        win, result = bet * 4.0, "win"
-    elif choice == "zastryal" and v == 3:
-        win, result = bet * 5.0, "win"
-    elif choice == "edge" and v == 2:
-        win, result = bet * 2.0, "win"
-    elif choice == "direct" and v == 5:
-        win, result = bet * 1.5, "win"
+    if choice == "otskok" and v == 1: win, result = bet * SPORT_MULT, "win"
+    elif choice == "blizko" and v == 4: win, result = bet * SPORT_MULT, "win"
+    elif choice == "zastryal" and v == 3: win, result = bet * SPORT_MULT, "win"
+    elif choice == "edge" and v == 2: win, result = bet * SPORT_MULT, "win"
+    elif choice == "direct" and v == 5: win, result = bet * SPORT_MULT, "win"
     return round(win, 2), result
 
 
@@ -156,23 +149,14 @@ def basketball_text(v):
     return "🏀 Прямое попадание"
 
 
-# ============================================================
-#              ДАРТС (Telegram Dice: 1-6)
-# ============================================================
 def calc_darts(bet, choice, v):
     win, result = 0.0, "lose"
-    if choice == "miss" and v == 1:
-        win, result = bet * 3.0, "win"
-    elif choice == "bull" and v == 2:
-        win, result = bet * 5.0, "win"
-    elif choice == "s1" and v == 3:
-        win, result = bet * 2.5, "win"
-    elif choice == "s2" and v == 4:
-        win, result = bet * 2.5, "win"
-    elif choice == "s3" and v == 5:
-        win, result = bet * 2.5, "win"
-    elif choice == "s4" and v == 6:
-        win, result = bet * 2.5, "win"
+    if choice == "miss" and v == 1: win, result = bet * SPORT_MULT, "win"
+    elif choice == "bull" and v == 2: win, result = bet * SPORT_MULT, "win"
+    elif choice == "s1" and v == 3: win, result = bet * SPORT_MULT, "win"
+    elif choice == "s2" and v == 4: win, result = bet * SPORT_MULT, "win"
+    elif choice == "s3" and v == 5: win, result = bet * SPORT_MULT, "win"
+    elif choice == "s4" and v == 6: win, result = bet * SPORT_MULT, "win"
     return round(win, 2), result
 
 
@@ -185,23 +169,14 @@ def darts_text(v):
     return "🎯 Сектор 4"
 
 
-# ============================================================
-#              БОУЛИНГ (Telegram Dice: 1-6)
-# ============================================================
 def calc_bowling(bet, choice, v):
     win, result = 0.0, "lose"
-    if choice == "miss" and v == 1:
-        win, result = bet * 3.5, "win"
-    elif choice == "p1" and v == 2:
-        win, result = bet * 4.0, "win"
-    elif choice == "p3" and v == 3:
-        win, result = bet * 3.0, "win"
-    elif choice == "p4" and v == 4:
-        win, result = bet * 2.5, "win"
-    elif choice == "p5" and v == 5:
-        win, result = bet * 2.0, "win"
-    elif choice == "strike" and v == 6:
-        win, result = bet * 1.5, "win"
+    if choice == "miss" and v == 1: win, result = bet * SPORT_MULT, "win"
+    elif choice == "p1" and v == 2: win, result = bet * SPORT_MULT, "win"
+    elif choice == "p3" and v == 3: win, result = bet * SPORT_MULT, "win"
+    elif choice == "p4" and v == 4: win, result = bet * SPORT_MULT, "win"
+    elif choice == "p5" and v == 5: win, result = bet * SPORT_MULT, "win"
+    elif choice == "strike" and v == 6: win, result = bet * SPORT_MULT, "win"
     return round(win, 2), result
 
 
@@ -226,20 +201,13 @@ def spin_slots():
 
 def calc_slots(bet, choice, reels):
     win, result = 0.0, "lose"
-    if choice == "triple" and len(set(reels)) == 1:
-        win, result = bet * 60, "win"
-    elif choice == "double" and len(set(reels)) == 2:
-        win, result = bet * 15, "win"
-    elif choice == "one" and "7️⃣" in reels:
-        win, result = bet * 3, "win"
-    elif choice == "exact" and reels == ["7️⃣", "7️⃣", "7️⃣"]:
-        win, result = bet * 100, "win"
-    elif choice == "unique" and len(set(reels)) == 3:
-        win, result = bet * 2, "win"
-    elif choice == "combo" and reels.count("7️⃣") >= 2:
-        win, result = bet * 20, "win"
-    elif choice == "any" and len(set(reels)) == 1:
-        win, result = bet * 15, "win"
+    if choice == "triple" and len(set(reels)) == 1: win, result = bet * 60, "win"
+    elif choice == "double" and len(set(reels)) == 2: win, result = bet * 15, "win"
+    elif choice == "one" and "7️⃣" in reels: win, result = bet * 3, "win"
+    elif choice == "exact" and reels == ["7️⃣", "7️⃣", "7️⃣"]: win, result = bet * 100, "win"
+    elif choice == "unique" and len(set(reels)) == 3: win, result = bet * 2, "win"
+    elif choice == "combo" and reels.count("7️⃣") >= 2: win, result = bet * 20, "win"
+    elif choice == "any" and len(set(reels)) == 1: win, result = bet * 15, "win"
     return round(win, 2), result
 
 
@@ -257,11 +225,15 @@ def mines_multiplier(mines, opened, total=25):
         return round(1.0 + opened * 0.1 * mines, 2)
 
 
-def tower_multiplier(level, difficulty="easy"):
-    base = {"easy": 1.5, "medium": 2.0, "hard": 3.0, "extreme": 5.0}.get(difficulty, 1.5)
-    m = 1.0
-    for _ in range(level): m *= base
-    return round(m * (1 - HOUSE_EDGE), 2)
+TOWER_MAX_LEVEL = 5
+TOWER_BASE = 1.5  # x1.5 каждый уровень
+
+
+def tower_multiplier(level):
+    """Башня — 5 уровней, каждый ×1.5"""
+    if level <= 0: return 1.0
+    if level > TOWER_MAX_LEVEL: level = TOWER_MAX_LEVEL
+    return round((TOWER_BASE ** level), 2)
 
 
 def generate_crash_point():
