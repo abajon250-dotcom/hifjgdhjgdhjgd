@@ -16,7 +16,7 @@ CRYPTO_TOKEN  = os.getenv("CRYPTO_BOT_TOKEN")
 XROCKET_TOKEN = os.getenv("XROCKET_TOKEN")
 CRYPTO_API  = "https://pay.crypt.bot/api"
 XROCKET_API = "https://pay.api.xrocket.exchange/api/v1"
-MIN_WITHDRAW = 2.0
+MIN_WITHDRAW = 1.0
 
 
 class WithdrawState(StatesGroup):

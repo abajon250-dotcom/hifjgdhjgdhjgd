@@ -73,6 +73,8 @@ class Database:
         self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS treasury (
                 id INTEGER PRIMARY KEY CHECK (id = 1),
+                crypto_manual REAL DEFAULT 0.0,
+                xrocket_manual REAL DEFAULT 0.0,
                 stars_manual REAL DEFAULT 0.0,
                 hot_manual REAL DEFAULT 0.0,
                 cold_manual REAL DEFAULT 0.0,
@@ -80,8 +82,9 @@ class Database:
             )
         """)
         self.cursor.execute(
-            "INSERT OR IGNORE INTO treasury (id, stars_manual, hot_manual, cold_manual) "
-            "VALUES (1, 0.0, 0.0, 0.0)"
+            "INSERT OR IGNORE INTO treasury "
+            "(id, crypto_manual, xrocket_manual, stars_manual, hot_manual, cold_manual) "
+            "VALUES (1, 0.0, 0.0, 0.0, 0.0, 0.0)"
         )
         self.conn.commit()
 
@@ -99,8 +102,8 @@ class Database:
         for c, t in migrations:
             self._add_column_if_not_exists(c, t)
 
-        # Промокод: если старая БД без required_wager — добавим
         self._add_promo_column("required_wager", "REAL DEFAULT 0.0")
+        self._ensure_treasury_cols()
 
     def _add_column_if_not_exists(self, name, typ):
         self.cursor.execute("PRAGMA table_info(users)")
@@ -115,6 +118,16 @@ class Database:
         if name not in cols:
             self.cursor.execute(f"ALTER TABLE promocodes ADD COLUMN {name} {typ}")
             self.conn.commit()
+
+    def _ensure_treasury_cols(self):
+        self.cursor.execute("PRAGMA table_info(treasury)")
+        cols = [i[1] for i in self.cursor.fetchall()]
+        for col in ("crypto_manual", "xrocket_manual", "stars_manual",
+                    "hot_manual", "cold_manual"):
+            if col not in cols:
+                self.cursor.execute(
+                    f"ALTER TABLE treasury ADD COLUMN {col} REAL DEFAULT 0.0")
+        self.conn.commit()
 
     # ============ USERS ============
     def get_user(self, uid):
@@ -344,7 +357,7 @@ class Database:
             return 0.0
         s = self.get_stats(uid)
         if s["total_wagered"] < info["required_wager"]:
-            return -1.0  # мало оборота
+            return -1.0
         self.cursor.execute("SELECT 1 FROM promo_uses WHERE user_id=? AND code=?",
                             (uid, code))
         if self.cursor.fetchone():
@@ -455,20 +468,33 @@ class Database:
 
     # ============ TREASURY ============
     def get_treasury_manual(self):
+        self._ensure_treasury_cols()
         self.cursor.execute("""
-            SELECT stars_manual, hot_manual, cold_manual, updated_at
+            SELECT crypto_manual, xrocket_manual, stars_manual,
+                   hot_manual, cold_manual, updated_at
             FROM treasury WHERE id=1
         """)
         r = self.cursor.fetchone()
         if not r:
-            return {"stars": 0.0, "hot": 0.0, "cold": 0.0, "updated_at": 0}
-        return {"stars": r[0], "hot": r[1], "cold": r[2], "updated_at": r[3]}
+            return {"crypto": 0.0, "xrocket": 0.0, "stars": 0.0,
+                    "hot": 0.0, "cold": 0.0, "updated_at": 0}
+        return {"crypto": r[0], "xrocket": r[1], "stars": r[2],
+                "hot": r[3], "cold": r[4], "updated_at": r[5]}
 
     def set_treasury_field(self, field, amount):
+        self._ensure_treasury_cols()
         col = f"{field}_manual"
         self.cursor.execute(
             f"UPDATE treasury SET {col}=?, updated_at=? WHERE id=1",
             (amount, int(time.time())))
+        self.conn.commit()
+
+    def add_treasury_field(self, field, delta):
+        self._ensure_treasury_cols()
+        col = f"{field}_manual"
+        self.cursor.execute(
+            f"UPDATE treasury SET {col}=MAX(0, {col}+?), updated_at=? WHERE id=1",
+            (delta, int(time.time())))
         self.conn.commit()
 
     def close(self):

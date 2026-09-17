@@ -131,37 +131,64 @@ async def admin_treasury(call: types.CallbackQuery):
 
     lines = ["💰 <b>КАЗНА КАЗИНО</b>\n"]
 
-    lines.append("💎 <b>CryptoBot:</b>")
+    # CryptoBot
+    crypto_api = t["crypto"].get("USDT", 0)
+    crypto_man = t["crypto_manual"]
+    crypto_total = t["crypto_total"]
+    lines.append(f"💎 <b>CryptoBot:</b>")
+    lines.append(f"  • API: <b>{crypto_api:.2f}</b>")
+    lines.append(f"  • Ручной: <b>{crypto_man:.2f}</b>")
+    lines.append(f"  • Всего: <b>{crypto_total:.2f}</b>")
     if t["crypto"]:
         for code, bal in t["crypto"].items():
-            lines.append(f"  • {code}: <b>{bal:.4f}</b>")
-    else:
-        lines.append("  <i>пусто или недоступно</i>")
+            if code != "USDT":
+                lines.append(f"  <i>└ {code}: {bal:.4f}</i>")
 
-    lines.append("\n🚀 <b>xRocket:</b>")
-    if t["xrocket"]:
-        for code, bal in t["xrocket"].items():
-            lines.append(f"  • {code}: <b>{bal:.4f}</b>")
-    else:
-        lines.append("  <i>пусто или недоступно</i>")
+    # xRocket
+    xr_api = t["xrocket"].get("USDT", 0)
+    xr_man = t["xrocket_manual"]
+    xr_total = t["xrocket_total"]
+    lines.append(f"\n🚀 <b>xRocket:</b>")
+    lines.append(f"  • API: <b>{xr_api:.2f}</b>")
+    lines.append(f"  • Ручной: <b>{xr_man:.2f}</b>")
+    lines.append(f"  • Всего: <b>{xr_total:.2f}</b>")
 
+    # Остальное
     lines.append(f"\n⭐ <b>Stars:</b> <b>{t['stars_manual']:.2f}</b>")
     lines.append(f"🔥 <b>Hot Wallet:</b> <b>{t['hot_manual']:.2f}</b>")
     lines.append(f"❄️ <b>Cold Wallet:</b> <b>{t['cold_manual']:.2f}</b>")
 
     lines.append(f"\n📊 <b>Всего USDT:</b> <b>{t['total_usdt']:.2f}</b>")
-    lines.append(f"👥 Обязательства юзерам: <b>{t['users_balance']:.2f}</b>")
+    lines.append(f"👥 Обязательства: <b>{t['users_balance']:.2f}</b>")
     res = t["reserve"]
     lines.append(f"{'🟢' if res >= 0 else '🔴'} <b>Резерв:</b> <b>{res:.2f}</b>")
 
     text = "\n".join(lines)
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✏️ Stars", callback_data="tsetf:stars"),
-         InlineKeyboardButton(text="✏️ Hot", callback_data="tsetf:hot"),
-         InlineKeyboardButton(text="✏️ Cold", callback_data="tsetf:cold")],
-        [InlineKeyboardButton(text="🔄 Обновить", callback_data="admin_treasury",
-                              style="primary")],
+        [InlineKeyboardButton(text="💎 -100", callback_data="tadj:crypto:-100"),
+         InlineKeyboardButton(text="💎 -10", callback_data="tadj:crypto:-10"),
+         InlineKeyboardButton(text="💎 +10", callback_data="tadj:crypto:+10"),
+         InlineKeyboardButton(text="💎 +100", callback_data="tadj:crypto:+100")],
+        [InlineKeyboardButton(text="🚀 -100", callback_data="tadj:xrocket:-100"),
+         InlineKeyboardButton(text="🚀 -10", callback_data="tadj:xrocket:-10"),
+         InlineKeyboardButton(text="🚀 +10", callback_data="tadj:xrocket:+10"),
+         InlineKeyboardButton(text="🚀 +100", callback_data="tadj:xrocket:+100")],
+        [InlineKeyboardButton(text="⭐ -100", callback_data="tadj:stars:-100"),
+         InlineKeyboardButton(text="⭐ -10", callback_data="tadj:stars:-10"),
+         InlineKeyboardButton(text="⭐ +10", callback_data="tadj:stars:+10"),
+         InlineKeyboardButton(text="⭐ +100", callback_data="tadj:stars:+100")],
+        [InlineKeyboardButton(text="🔥 -100", callback_data="tadj:hot:-100"),
+         InlineKeyboardButton(text="🔥 -10", callback_data="tadj:hot:-10"),
+         InlineKeyboardButton(text="🔥 +10", callback_data="tadj:hot:+10"),
+         InlineKeyboardButton(text="🔥 +100", callback_data="tadj:hot:+100")],
+        [InlineKeyboardButton(text="❄️ -100", callback_data="tadj:cold:-100"),
+         InlineKeyboardButton(text="❄️ -10", callback_data="tadj:cold:-10"),
+         InlineKeyboardButton(text="❄️ +10", callback_data="tadj:cold:+10"),
+         InlineKeyboardButton(text="❄️ +100", callback_data="tadj:cold:+100")],
+        [InlineKeyboardButton(text="✏️ Установить вручную",
+                              callback_data="tsetf_choose"),
+         InlineKeyboardButton(text="🔄 Обновить", callback_data="admin_treasury")],
         [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_refresh",
                               style="danger")],
     ])
@@ -170,6 +197,48 @@ async def admin_treasury(call: types.CallbackQuery):
         await call.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
     except Exception:
         await call.message.answer(text, reply_markup=kb, parse_mode="HTML")
+
+
+@router.callback_query(F.data.startswith("tadj:"))
+async def treasury_adjust(call: types.CallbackQuery):
+    if not is_admin(call.from_user.id):
+        return await call.answer("Нет доступа", show_alert=True)
+
+    _, field, delta_str = call.data.split(":")
+    delta = float(delta_str)
+    db.add_treasury_field(field, delta)
+
+    names = {"crypto": "💎 CryptoBot", "xrocket": "🚀 xRocket",
+             "stars": "⭐ Stars", "hot": "🔥 Hot", "cold": "❄️ Cold"}
+    name = names.get(field, field)
+    sign = "+" if delta > 0 else ""
+    await call.answer(f"{name}: {sign}{delta:g} USDT", show_alert=False)
+
+    class FakeCall:
+        from_user = call.from_user
+        message = call.message
+        async def answer(self, *a, **k): pass
+
+    await admin_treasury(FakeCall())
+
+
+@router.callback_query(F.data == "tsetf_choose")
+async def tsetf_choose(call: types.CallbackQuery):
+    if not is_admin(call.from_user.id):
+        return await call.answer("Нет доступа", show_alert=True)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💎 CryptoBot", callback_data="tsetf:crypto"),
+         InlineKeyboardButton(text="🚀 xRocket", callback_data="tsetf:xrocket")],
+        [InlineKeyboardButton(text="⭐ Stars", callback_data="tsetf:stars"),
+         InlineKeyboardButton(text="🔥 Hot", callback_data="tsetf:hot")],
+        [InlineKeyboardButton(text="❄️ Cold", callback_data="tsetf:cold")],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_treasury",
+                              style="danger")],
+    ])
+    await call.message.edit_text(
+        "✏️ <b>Установить точное значение</b>\n\nВыбери поле:",
+        reply_markup=kb, parse_mode="HTML")
+    await call.answer()
 
 
 @router.callback_query(F.data.startswith("tsetf:"))

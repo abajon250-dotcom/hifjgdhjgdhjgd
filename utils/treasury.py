@@ -11,6 +11,7 @@ XROCKET_API   = "https://pay.api.xrocket.exchange/api/v1"
 
 
 async def get_crypto_balances() -> dict:
+    """Все валюты CryptoBot: {'USDT': 17.49, 'TRX': 127.73, ...}"""
     if not CRYPTO_TOKEN:
         return {}
     headers = {"Crypto-Pay-API-Token": CRYPTO_TOKEN}
@@ -33,6 +34,7 @@ async def get_crypto_balances() -> dict:
 
 
 async def get_xrocket_balances() -> dict:
+    """Пробуем разные эндпоинты xRocket, чтобы найти баланс."""
     if not XROCKET_TOKEN:
         return {}
     headers = {
@@ -55,6 +57,7 @@ async def get_xrocket_balances() -> dict:
             d = data.get("data", data) if isinstance(data, dict) else {}
             out = {}
 
+            # Вариант 1: {"balances": {"USDT": 23.43, "TON": 123}}
             if isinstance(d.get("balances"), dict):
                 for k, v in d["balances"].items():
                     if isinstance(v, (int, float)) and v > 0:
@@ -62,6 +65,7 @@ async def get_xrocket_balances() -> dict:
                 if out:
                     return out
 
+            # Вариант 2: {"assets": [{"asset": "USDT", "balance": 23.43}]}
             if isinstance(d.get("assets"), list):
                 for a in d["assets"]:
                     code = (a.get("asset") or a.get("currency") or "").upper()
@@ -71,12 +75,14 @@ async def get_xrocket_balances() -> dict:
                 if out:
                     return out
 
+            # Вариант 3: плоский dict
             for k, v in d.items():
                 if k.upper() in ("USDT", "TON", "TRX", "GRAM", "BTC", "ETH") and \
                    isinstance(v, (int, float)) and v > 0:
                     out[k.upper()] = float(v)
             if out:
                 return out
+
         except Exception:
             continue
     return {}
@@ -92,17 +98,31 @@ async def get_full_treasury() -> dict:
     db.cursor.execute("SELECT COALESCE(SUM(balance),0) FROM users")
     users_balance = db.cursor.fetchone()[0]
 
-    crypto_usdt = crypto.get("USDT", 0)
-    xrocket_usdt = xrocket.get("USDT", 0)
+    # API-балансы USDT
+    crypto_api_usdt = crypto.get("USDT", 0)
+    xrocket_api_usdt = xrocket.get("USDT", 0)
+
+    # Ручные добавки (то, что админ накрутил через кнопки)
+    crypto_manual = manual.get("crypto", 0)
+    xrocket_manual = manual.get("xrocket", 0)
     stars_manual = manual.get("stars", 0)
     hot_manual = manual.get("hot", 0)
     cold_manual = manual.get("cold", 0)
 
-    total_usdt = crypto_usdt + xrocket_usdt + stars_manual + hot_manual + cold_manual
+    # Итог по платёжкам
+    crypto_total = crypto_api_usdt + crypto_manual
+    xrocket_total = xrocket_api_usdt + xrocket_manual
+
+    total_usdt = (crypto_total + xrocket_total +
+                  stars_manual + hot_manual + cold_manual)
 
     return {
         "crypto": crypto,
         "xrocket": xrocket,
+        "crypto_manual": crypto_manual,
+        "xrocket_manual": xrocket_manual,
+        "crypto_total": crypto_total,
+        "xrocket_total": xrocket_total,
         "stars_manual": stars_manual,
         "hot_manual": hot_manual,
         "cold_manual": cold_manual,
