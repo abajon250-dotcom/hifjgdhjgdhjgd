@@ -57,15 +57,12 @@ async def withdraw_method(call: types.CallbackQuery, state: FSMContext):
         amount = float(preset)
         bal = db.get_balance(call.from_user.id)
         if amount > bal:
-            return await call.answer(f"❌ Недостаточно. Баланс: {bal:.2f}",
-                                     show_alert=True)
+            return await call.answer(f"❌ Недостаточно. Баланс: {bal:.2f}", show_alert=True)
         await state.update_data(amount=amount, wd_amount=None)
         payout, commission = apply_withdraw_commission(amount)
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="✅ Подтвердить", callback_data="wd_confirm",
-                                  style="success"),
-             InlineKeyboardButton(text="❌ Отмена", callback_data="wd_cancel",
-                                  style="danger")]])
+            [InlineKeyboardButton(text="✅ Подтвердить", callback_data="wd_confirm", style="success"),
+             InlineKeyboardButton(text="❌ Отмена", callback_data="wd_cancel", style="danger")]])
         await call.message.edit_text(
             f"Вывод: <b>{amount} USDT</b> через {method}\n"
             f"Комиссия: <b>{commission} USDT</b>\n"
@@ -87,8 +84,8 @@ async def withdraw_amount(message: types.Message, state: FSMContext):
         amount = float(message.text.replace(",", ".").replace("$", "").strip())
         assert amount >= MIN_WITHDRAW
     except Exception:
-        return await message.answer(
-            f"❌ Минимум для вывода: <b>{MIN_WITHDRAW} USDT</b>", parse_mode="HTML")
+        return await message.answer(f"❌ Минимум для вывода: <b>{MIN_WITHDRAW} USDT</b>",
+                                    parse_mode="HTML")
     bal = db.get_balance(message.from_user.id)
     if amount > bal:
         return await message.answer(f"❌ Недостаточно. Баланс: {bal:.2f}")
@@ -96,10 +93,8 @@ async def withdraw_amount(message: types.Message, state: FSMContext):
     data = await state.get_data()
     payout, commission = apply_withdraw_commission(amount)
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ Подтвердить", callback_data="wd_confirm",
-                              style="success"),
-         InlineKeyboardButton(text="❌ Отмена", callback_data="wd_cancel",
-                              style="danger")]])
+        [InlineKeyboardButton(text="✅ Подтвердить", callback_data="wd_confirm", style="success"),
+         InlineKeyboardButton(text="❌ Отмена", callback_data="wd_cancel", style="danger")]])
     await message.answer(
         f"Вывод: <b>{amount} USDT</b> через {data['method']}\n"
         f"Комиссия: <b>{commission} USDT</b>\n"
@@ -138,8 +133,7 @@ async def withdraw_confirm(call: types.CallbackQuery, state: FSMContext):
                                   headers=headers) as r:
                     resp = await r.json()
         except Exception:
-            await call.message.edit_text(
-                "❌ <b>Платёжный сервис недоступен</b>\nПопробуйте позже.")
+            await call.message.edit_text("❌ <b>Платёжный сервис недоступен</b>\nПопробуйте позже.")
             await state.clear()
             return await call.answer()
         if resp.get("ok"):
@@ -184,8 +178,7 @@ async def withdraw_confirm(call: types.CallbackQuery, state: FSMContext):
                     status_code = r.status
                     resp = await r.json()
         except Exception:
-            await call.message.edit_text(
-                "❌ <b>Платёжный сервис недоступен</b>\nПопробуйте позже.")
+            await call.message.edit_text("❌ <b>Платёжный сервис недоступен</b>\nПопробуйте позже.")
             await state.clear()
             return await call.answer()
         if status_code in (200, 201) and (resp.get("data") or resp.get("id")):
@@ -205,7 +198,6 @@ async def withdraw_confirm(call: types.CallbackQuery, state: FSMContext):
                 f"{WALLET2} Баланс: <b>{db.get_balance(uid):.2f}</b>",
                 parse_mode="HTML")
         else:
-            await call.message.edit_text(format_error("xrocket", resp),
-                                         parse_mode="HTML")
+            await call.message.edit_text(format_error("xrocket", resp), parse_mode="HTML")
     await state.clear()
     await call.answer()

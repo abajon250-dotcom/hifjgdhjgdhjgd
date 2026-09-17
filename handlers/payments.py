@@ -29,11 +29,8 @@ class DepositState(StatesGroup):
 
 def _after_deposit_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🎮 Играть", callback_data="games_main",
-                              style="success")],
-        [InlineKeyboardButton(text="💼 Кошелёк", callback_data="wallet",
-                              style="primary")],
-    ])
+        [InlineKeyboardButton(text="🎮 Играть", callback_data="games_main", style="success")],
+        [InlineKeyboardButton(text="💼 Кошелёк", callback_data="wallet", style="primary")]])
 
 
 async def _show_after_deposit(message_or_call, uid, credited):
@@ -45,14 +42,12 @@ async def _show_after_deposit(message_or_call, uid, credited):
             f"{DOLLAR} Баланс — <b>{bal:.2f}</b>\n"
             f"{BET} Ставка — <b>{bet}</b>")
     if hasattr(message_or_call, "answer"):
-        await message_or_call.answer(text, reply_markup=_after_deposit_kb(),
-                                     parse_mode="HTML")
+        await message_or_call.answer(text, reply_markup=_after_deposit_kb(), parse_mode="HTML")
 
 
 async def _notify_deposit_safe(bot, uid, credited):
     try:
-        row = db.cursor.execute("SELECT username FROM users WHERE user_id=?",
-                                (uid,)).fetchone()
+        row = db.cursor.execute("SELECT username FROM users WHERE user_id=?", (uid,)).fetchone()
         uname = row[0] if row and row[0] else f"id{uid}"
         await notify_deposit(bot, uid, uname, credited)
     except Exception as e:
@@ -121,9 +116,8 @@ async def create_deposit(call: types.CallbackQuery):
 async def custom_deposit(call: types.CallbackQuery, state: FSMContext):
     method = call.data.split(":")[1]
     await state.update_data(dep_method=method)
-    await call.message.edit_text(
-        f"✏️ <b>Введите свою сумму</b> (мин. {MIN_DEPOSIT} USDT):",
-        parse_mode="HTML")
+    await call.message.edit_text(f"✏️ <b>Введите свою сумму</b> (мин. {MIN_DEPOSIT} USDT):",
+                                 parse_mode="HTML")
     await state.set_state(DepositState.waiting_custom_amount)
     await call.answer()
 
@@ -132,8 +126,7 @@ async def custom_deposit(call: types.CallbackQuery, state: FSMContext):
 async def process_custom_amount(message: types.Message, state: FSMContext):
     try:
         amount = float(message.text.replace(",", ".").replace("$", "").strip())
-        if amount < MIN_DEPOSIT:
-            raise ValueError
+        if amount < MIN_DEPOSIT: raise ValueError
     except Exception:
         return await message.answer(f"❌ Введите число ≥ {MIN_DEPOSIT}")
     data = await state.get_data()
@@ -157,8 +150,7 @@ async def _process_deposit(call, method: str, amount: float):
         headers = {"Crypto-Pay-API-Token": CRYPTO_TOKEN}
         payload = {"asset": "USDT", "amount": str(amount),
                    "description": "Пополнение баланса",
-                   "payload": f"crypto:{uid}:{credited}",
-                   "expires_in": 900}
+                   "payload": f"crypto:{uid}:{credited}", "expires_in": 900}
         try:
             async with aiohttp.ClientSession() as s:
                 async with s.post(f"{CRYPTO_API}/createInvoice", json=payload,
@@ -167,20 +159,18 @@ async def _process_deposit(call, method: str, amount: float):
         except Exception:
             return await call.message.answer("❌ Сервис недоступен.")
         if not data.get("ok"):
-            return await call.message.answer(format_error("crypto", data),
-                                             parse_mode="HTML")
+            return await call.message.answer(format_error("crypto", data), parse_mode="HTML")
         inv = data["result"]
         db.add_transaction(uid, "deposit", "crypto", amount, commission,
                            "pending", str(inv["invoice_id"]))
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="Оплатить", url=inv["bot_invoice_url"],
-                                  style="success")],
+            [InlineKeyboardButton(text="Оплатить", url=inv["bot_invoice_url"], style="success")],
             [InlineKeyboardButton(text="Я оплатил",
                                   callback_data=f"chk:crypto:{inv['invoice_id']}",
                                   style="primary")]])
         await call.message.answer(
-            f"{CRYPTOBOT} <b>Счёт CryptoBot на {amount} USDT</b>\n"
-            f"⏱ Действует <b>15 минут</b>", reply_markup=kb, parse_mode="HTML")
+            f"{CRYPTOBOT} <b>Счёт CryptoBot на {amount} USDT</b>\n⏱ Действует <b>15 минут</b>",
+            reply_markup=kb, parse_mode="HTML")
         return
 
     if method == "xrocket":
@@ -191,8 +181,7 @@ async def _process_deposit(call, method: str, amount: float):
                    "payoutCurrency": "USDT", "payCurrencies": ["USDT"],
                    "description": "Пополнение баланса",
                    "clientInvoiceId": f"dep_{uid}_{int(amount*100)}_{int(time.time())}",
-                   "expiresIn": 900000,
-                   "customer": {"telegramId": str(uid)}}
+                   "expiresIn": 900000, "customer": {"telegramId": str(uid)}}
         try:
             async with aiohttp.ClientSession() as s:
                 async with s.post(f"{XROCKET_API}/invoices", json=payload,
@@ -202,13 +191,11 @@ async def _process_deposit(call, method: str, amount: float):
         except Exception:
             return await call.message.answer("❌ Сервис недоступен.")
         if status_code >= 400:
-            return await call.message.answer(format_error("xrocket", data),
-                                             parse_mode="HTML")
+            return await call.message.answer(format_error("xrocket", data), parse_mode="HTML")
         inv_id = data.get("id")
         links = data.get("links", {}) or {}
         link = links.get("telegramBotLink") or links.get("webLink") or data.get("link")
-        if not link:
-            return await call.message.answer("❌ Не удалось создать счёт.")
+        if not link: return await call.message.answer("❌ Не удалось создать счёт.")
         db.add_transaction(uid, "deposit", "xrocket", amount, commission,
                            "pending", str(inv_id or ""))
         kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -217,8 +204,8 @@ async def _process_deposit(call, method: str, amount: float):
                                   callback_data=f"chk:xrocket:{inv_id or ''}",
                                   style="primary")]])
         await call.message.answer(
-            f"{XROCKET} <b>Счёт xRocket на {amount} USDT</b>\n"
-            f"⏱ Действует <b>15 минут</b>", reply_markup=kb, parse_mode="HTML")
+            f"{XROCKET} <b>Счёт xRocket на {amount} USDT</b>\n⏱ Действует <b>15 минут</b>",
+            reply_markup=kb, parse_mode="HTML")
 
 
 @router.message(DepositState.waiting_stars_amount)
@@ -231,8 +218,8 @@ async def stars_amount(message: types.Message, state: FSMContext):
     prices = [LabeledPrice(label="Пополнение", amount=stars)]
     await message.answer_invoice(title="Пополнение баланса",
                                  description=f"Покупка {stars} звёзд",
-                                 payload=f"stars:{stars}",
-                                 provider_token="", currency="XTR", prices=prices)
+                                 payload=f"stars:{stars}", provider_token="",
+                                 currency="XTR", prices=prices)
     await state.clear()
 
 
@@ -258,8 +245,7 @@ async def check_payment(call: types.CallbackQuery):
             credited = float(payload.split(":")[2]) if ":" in payload else 0
             db.update_balance(uid, credited)
             db.add_deposit(uid, credited)
-            db.add_transaction(uid, "deposit", "crypto", credited, 0.0,
-                               "success", invoice_id)
+            db.add_transaction(uid, "deposit", "crypto", credited, 0.0, "success", invoice_id)
             await _notify_deposit_safe(call.bot, uid, credited)
             await call.message.delete()
             await _show_after_deposit(call.message, uid, credited)
@@ -269,8 +255,7 @@ async def check_payment(call: types.CallbackQuery):
     if provider == "xrocket":
         if not invoice_id:
             return await call.answer("❌ Счёт не найден.", show_alert=True)
-        headers = {"Authorization": f"Bearer {XROCKET_TOKEN}",
-                   "Accept": "application/json"}
+        headers = {"Authorization": f"Bearer {XROCKET_TOKEN}", "Accept": "application/json"}
         try:
             async with aiohttp.ClientSession() as s:
                 async with s.get(f"{XROCKET_API}/invoices", headers=headers,
@@ -290,8 +275,7 @@ async def check_payment(call: types.CallbackQuery):
             credited = float(inv.get("priceAmount", 0))
             db.update_balance(uid, credited)
             db.add_deposit(uid, credited)
-            db.add_transaction(uid, "deposit", "xrocket", credited, 0.0,
-                               "success", str(invoice_id))
+            db.add_transaction(uid, "deposit", "xrocket", credited, 0.0, "success", str(invoice_id))
             await _notify_deposit_safe(call.bot, uid, credited)
             await call.message.delete()
             await _show_after_deposit(call.message, uid, credited)

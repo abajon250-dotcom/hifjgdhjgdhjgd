@@ -12,44 +12,34 @@ from utils.user_state import get_bet
 router = Router()
 
 
-def _parse_uid(call: types.CallbackQuery) -> int:
+def _parse_uid(call):
     parts = call.data.split(":")
-    if parts and parts[-1].isdigit() and len(parts[-1]) > 5:
-        return int(parts[-1])
+    if parts and parts[-1].isdigit() and len(parts[-1]) > 5: return int(parts[-1])
     return call.from_user.id
 
 
-def _check_owner(call, uid) -> bool:
-    return call.from_user.id == uid
+def _check_owner(call, uid): return call.from_user.id == uid
 
 
 async def _no(call):
     await call.answer("❌ Это не твоя игра!", show_alert=True)
 
 
-# ============================================================
-#                       МИНЫ
-# ============================================================
 @router.callback_query(F.data.startswith("mines_n:"))
 async def mines_start(call: types.CallbackQuery):
     parts = call.data.split(":")
     mines = int(parts[1])
     uid = _parse_uid(call)
-    if not _check_owner(call, uid):
-        return await _no(call)
-
+    if not _check_owner(call, uid): return await _no(call)
     bet = db.get_bet(uid)
     if not db.has_enough(uid, bet):
         return await call.answer("❌ Недостаточно средств", show_alert=True)
-
     db.update_balance(uid, -bet)
     db.add_wager(uid, bet)
     db.inc_games(uid)
-
     mine_positions = set(random.sample(range(25), mines))
     data = f"{mines}|{','.join(map(str, sorted(mine_positions)))}|"
     db.set_active_game(uid, "mines", "playing", bet, 1.0, data)
-
     await _render_mines(call.message, uid)
     await call.answer()
 
@@ -84,8 +74,7 @@ def _mines_kb(opened, uid, mult, mine_pos=None, reveal=False):
 
 async def _render_mines(msg, uid):
     game = db.get_active_game(uid)
-    if not game or game[0] != "mines":
-        return
+    if not game or game[0] != "mines": return
     _, _, bet, mult, data = game
     mines, mine_pos, opened = _parse_mines(data)
     rows = _mines_kb(opened, uid, mult)
@@ -110,18 +99,13 @@ async def mines_open(call: types.CallbackQuery):
     parts = call.data.split(":")
     idx = int(parts[1])
     uid = _parse_uid(call)
-    if not _check_owner(call, uid):
-        return await _no(call)
-
+    if not _check_owner(call, uid): return await _no(call)
     game = db.get_active_game(uid)
     if not game or game[0] != "mines":
         return await call.answer("❌ Игра не найдена", show_alert=True)
-
     _, _, bet, mult, data = game
     mines, mine_pos, opened = _parse_mines(data)
-    if idx in opened:
-        return await call.answer()
-
+    if idx in opened: return await call.answer()
     if idx in mine_pos:
         db.add_loss(uid, bet)
         db.add_game(uid, "mines", bet, 0, 0, "lose")
@@ -133,10 +117,8 @@ async def mines_open(call: types.CallbackQuery):
                 f"{WALLET} Баланс: <b>{db.get_balance(uid):.2f}</b>",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=rows),
                 parse_mode="HTML")
-        except Exception:
-            pass
+        except Exception: pass
         return await call.answer("💥 Мина!")
-
     opened.add(idx)
     new_mult = mines_multiplier(mines, len(opened))
     new_data = (f"{mines}|{','.join(map(str, sorted(mine_pos)))}|"
@@ -149,43 +131,32 @@ async def mines_open(call: types.CallbackQuery):
 @router.callback_query(F.data.startswith("mcash:"))
 async def mines_cash(call: types.CallbackQuery):
     uid = _parse_uid(call)
-    if not _check_owner(call, uid):
-        return await _no(call)
+    if not _check_owner(call, uid): return await _no(call)
     game = db.get_active_game(uid)
     if not game or game[0] != "mines":
         return await call.answer("❌", show_alert=True)
     _, _, bet, mult, data = game
     mines, mine_pos, opened = _parse_mines(data)
-    if not opened:
-        return await call.answer("❌ Открой ячейку!", show_alert=True)
+    if not opened: return await call.answer("❌ Открой ячейку!", show_alert=True)
     win = round(bet * mult, 2)
     credited, comm = apply_win_commission(win)
     db.update_balance(uid, credited)
     db.add_win(uid, credited)
     db.add_game(uid, "mines", bet, credited, mult, "win")
-
     from utils.refs import give_ref_bonus
     give_ref_bonus(uid, credited)
-
     db.delete_active_game(uid)
     await call.message.edit_text(
         f"💰 <b>Забрали!</b>\nМножитель: <b>{mult:.2f}x</b>\n"
         f"✅ +{credited:.2f} {DOLLAR}\n"
-        f"💸 Комиссия 2%: <b>-{comm:.2f}</b> {DOLLAR}\n"
-        f"{WALLET} Баланс: <b>{db.get_balance(uid):.2f}</b>",
-        parse_mode="HTML")
+        f"{WALLET} Баланс: <b>{db.get_balance(uid):.2f}</b>", parse_mode="HTML")
     await call.answer("✅")
 
 
-# ============================================================
-#                       БАШНЯ
-# ============================================================
 @router.callback_query(F.data.startswith("ar:tower:"))
 async def tower_start(call: types.CallbackQuery):
     uid = _parse_uid(call)
-    if not _check_owner(call, uid):
-        return await _no(call)
-
+    if not _check_owner(call, uid): return await _no(call)
     bet = db.get_bet(uid)
     if not db.has_enough(uid, bet):
         return await call.answer("❌ Недостаточно средств", show_alert=True)
@@ -199,8 +170,7 @@ async def tower_start(call: types.CallbackQuery):
 
 async def _render_tower(msg, uid):
     game = db.get_active_game(uid)
-    if not game or game[0] != "tower":
-        return
+    if not game or game[0] != "tower": return
     _, _, bet, mult, data = game
     level = int(data)
     rows = [[InlineKeyboardButton(text="⬆️ Подняться", callback_data=f"tup:{uid}")]]
@@ -220,8 +190,7 @@ async def _render_tower(msg, uid):
 @router.callback_query(F.data.startswith("tup:"))
 async def tower_up(call: types.CallbackQuery):
     uid = _parse_uid(call)
-    if not _check_owner(call, uid):
-        return await _no(call)
+    if not _check_owner(call, uid): return await _no(call)
     game = db.get_active_game(uid)
     if not game or game[0] != "tower":
         return await call.answer("❌", show_alert=True)
@@ -241,52 +210,40 @@ async def tower_up(call: types.CallbackQuery):
             await call.message.edit_text(
                 f"💥 Сорвался на уровне {level}!\n"
                 f"Потеряно: <b>{bet}</b> {DOLLAR}\n"
-                f"{WALLET} Баланс: <b>{db.get_balance(uid):.2f}</b>",
-                parse_mode="HTML")
-        except Exception:
-            pass
+                f"{WALLET} Баланс: <b>{db.get_balance(uid):.2f}</b>", parse_mode="HTML")
+        except Exception: pass
         await call.answer("💥")
 
 
 @router.callback_query(F.data.startswith("tcs:"))
 async def tower_cash(call: types.CallbackQuery):
     uid = _parse_uid(call)
-    if not _check_owner(call, uid):
-        return await _no(call)
+    if not _check_owner(call, uid): return await _no(call)
     game = db.get_active_game(uid)
     if not game or game[0] != "tower":
         return await call.answer("❌", show_alert=True)
     _, _, bet, mult, data = game
     level = int(data)
-    if level <= 0:
-        return await call.answer("❌ Сначала поднимись!", show_alert=True)
+    if level <= 0: return await call.answer("❌ Сначала поднимись!", show_alert=True)
     win = round(bet * mult, 2)
     credited, comm = apply_win_commission(win)
     db.update_balance(uid, credited)
     db.add_win(uid, credited)
     db.add_game(uid, "tower", bet, credited, mult, "win")
-
     from utils.refs import give_ref_bonus
     give_ref_bonus(uid, credited)
-
     db.delete_active_game(uid)
     await call.message.edit_text(
         f"💰 <b>Забрали!</b>\nУровень: {level} | x{mult:.2f}\n"
         f"✅ +{credited:.2f} {DOLLAR}\n"
-        f"💸 Комиссия 2%: <b>-{comm:.2f}</b> {DOLLAR}\n"
-        f"{WALLET} Баланс: <b>{db.get_balance(uid):.2f}</b>",
-        parse_mode="HTML")
+        f"{WALLET} Баланс: <b>{db.get_balance(uid):.2f}</b>", parse_mode="HTML")
     await call.answer("✅")
 
 
-# ============================================================
-#                       КРАШ
-# ============================================================
 @router.callback_query(F.data.startswith("ar:crash:"))
 async def crash_start(call: types.CallbackQuery):
     uid = _parse_uid(call)
-    if not _check_owner(call, uid):
-        return await _no(call)
+    if not _check_owner(call, uid): return await _no(call)
     bet = db.get_bet(uid)
     if not db.has_enough(uid, bet):
         return await call.answer("❌ Недостаточно", show_alert=True)
@@ -298,9 +255,8 @@ async def crash_start(call: types.CallbackQuery):
     msg = await call.message.edit_text(
         f"🚀 <b>Краш</b>\nМножитель: <b>1.00x</b>",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="💰 Забрать 1.00x",
-                                  callback_data=f"ccs:{uid}")],
-        ]), parse_mode="HTML")
+            [InlineKeyboardButton(text="💰 Забрать 1.00x", callback_data=f"ccs:{uid}")]]),
+        parse_mode="HTML")
     await call.answer()
     asyncio.create_task(_crash_loop(uid, msg, cp, bet))
 
@@ -311,21 +267,18 @@ async def _crash_loop(uid, msg, cp, bet):
         await asyncio.sleep(0.7)
         mult = round(mult + 0.05, 2)
         game = db.get_active_game(uid)
-        if not game or game[0] != "crash":
-            return
+        if not game or game[0] != "crash": return
         db.set_active_game(uid, "crash", "playing", bet, mult, f"{cp}|{mult}")
         try:
             await msg.edit_text(
                 f"🚀 <b>Краш</b>\nМножитель: <b>{mult:.2f}x</b>",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text=f"💰 Забрать {mult:.2f}x",
-                                          callback_data=f"ccs:{uid}")],
-                ]), parse_mode="HTML")
-        except Exception:
-            pass
+                                          callback_data=f"ccs:{uid}")]]),
+                parse_mode="HTML")
+        except Exception: pass
     game = db.get_active_game(uid)
-    if not game or game[0] != "crash":
-        return
+    if not game or game[0] != "crash": return
     db.add_loss(uid, bet)
     db.add_game(uid, "crash", bet, 0, 0, "lose")
     db.delete_active_game(uid)
@@ -333,17 +286,14 @@ async def _crash_loop(uid, msg, cp, bet):
         await msg.edit_text(
             f"💥 <b>КРАШ на {cp:.2f}x!</b>\n"
             f"Потеряно: <b>{bet}</b> {DOLLAR}\n"
-            f"{WALLET} Баланс: <b>{db.get_balance(uid):.2f}</b>",
-            parse_mode="HTML")
-    except Exception:
-        pass
+            f"{WALLET} Баланс: <b>{db.get_balance(uid):.2f}</b>", parse_mode="HTML")
+    except Exception: pass
 
 
 @router.callback_query(F.data.startswith("ccs:"))
 async def crash_cash(call: types.CallbackQuery):
     uid = _parse_uid(call)
-    if not _check_owner(call, uid):
-        return await _no(call)
+    if not _check_owner(call, uid): return await _no(call)
     game = db.get_active_game(uid)
     if not game or game[0] != "crash":
         return await call.answer("❌", show_alert=True)
@@ -361,28 +311,20 @@ async def crash_cash(call: types.CallbackQuery):
     db.update_balance(uid, credited)
     db.add_win(uid, credited)
     db.add_game(uid, "crash", bet, credited, current, "win")
-
     from utils.refs import give_ref_bonus
     give_ref_bonus(uid, credited)
-
     db.delete_active_game(uid)
     await call.message.edit_text(
         f"💰 <b>Забрали на {current:.2f}x!</b>\n"
         f"✅ +{credited:.2f} {DOLLAR}\n"
-        f"💸 Комиссия 2%: <b>-{comm:.2f}</b> {DOLLAR}\n"
-        f"{WALLET} Баланс: <b>{db.get_balance(uid):.2f}</b>",
-        parse_mode="HTML")
+        f"{WALLET} Баланс: <b>{db.get_balance(uid):.2f}</b>", parse_mode="HTML")
     await call.answer("✅")
 
 
-# ============================================================
-#                       КЕНО
-# ============================================================
 @router.callback_query(F.data.startswith("ar:keno:"))
 async def keno_start(call: types.CallbackQuery):
     uid = _parse_uid(call)
-    if not _check_owner(call, uid):
-        return await _no(call)
+    if not _check_owner(call, uid): return await _no(call)
     bet = db.get_bet(uid)
     if not db.has_enough(uid, bet):
         return await call.answer("❌ Недостаточно", show_alert=True)
@@ -392,24 +334,20 @@ async def keno_start(call: types.CallbackQuery):
     hits = random.randint(0, 5)
     mult = keno_multiplier(hits, 5)
     win = round(bet * mult, 2)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🎮 Меню игр", callback_data="games_main", style="primary")]])
     if mult > 0:
         credited, comm = apply_win_commission(win)
         db.update_balance(uid, credited)
         db.add_win(uid, credited)
         db.add_game(uid, "keno", bet, credited, mult, "win")
-
         from utils.refs import give_ref_bonus
         give_ref_bonus(uid, credited)
-
         await call.message.edit_text(
             f"🎯 <b>Кено</b>\nУгадано: <b>{hits}</b>/5\n"
             f"✅ x{mult:.2f} → <b>+{credited:.2f}</b> {DOLLAR}\n"
-            f"💸 Комиссия 2%: <b>-{comm:.2f}</b> {DOLLAR}\n"
             f"{WALLET} Баланс: <b>{db.get_balance(uid):.2f}</b>",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🎮 Меню игр",
-                                      callback_data="games_main", style="primary")],
-            ]), parse_mode="HTML")
+            reply_markup=kb, parse_mode="HTML")
     else:
         db.add_loss(uid, bet)
         db.add_game(uid, "keno", bet, 0, 0, "lose")
@@ -417,21 +355,14 @@ async def keno_start(call: types.CallbackQuery):
             f"🎯 <b>Кено</b>\nУгадано: <b>{hits}</b>/5\n"
             f"❌ -{bet:.2f} {DOLLAR}\n"
             f"{WALLET} Баланс: <b>{db.get_balance(uid):.2f}</b>",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🎮 Меню игр",
-                                      callback_data="games_main", style="primary")],
-            ]), parse_mode="HTML")
+            reply_markup=kb, parse_mode="HTML")
     await call.answer()
 
 
-# ============================================================
-#                       РУЛЕТКА
-# ============================================================
 @router.callback_query(F.data.startswith("ar:roulette:"))
 async def roulette_start(call: types.CallbackQuery):
     uid = _parse_uid(call)
-    if not _check_owner(call, uid):
-        return await _no(call)
+    if not _check_owner(call, uid): return await _no(call)
     bet = db.get_bet(uid)
     if not db.has_enough(uid, bet):
         return await call.answer("❌ Недостаточно", show_alert=True)
@@ -443,24 +374,20 @@ async def roulette_start(call: types.CallbackQuery):
     color = "green" if n == 0 else ("red" if n in reds else "black")
     win, result = roulette_multiplier(bet, "red", n, color)
     ci = {"red":"🔴","black":"⚫","green":"🟢"}[color]
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🎮 Меню игр", callback_data="games_main", style="primary")]])
     if result == "win":
         credited, comm = apply_win_commission(win)
         db.update_balance(uid, credited)
         db.add_win(uid, credited)
         db.add_game(uid, "roulette", bet, credited, 2.0, "win")
-
         from utils.refs import give_ref_bonus
         give_ref_bonus(uid, credited)
-
         await call.message.edit_text(
             f"🎡 <b>Рулетка</b>\nВыпало {ci} <b>{n}</b>\n"
             f"✅ +{credited:.2f} {DOLLAR}\n"
-            f"💸 Комиссия 2%: <b>-{comm:.2f}</b> {DOLLAR}\n"
             f"{WALLET} Баланс: <b>{db.get_balance(uid):.2f}</b>",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🎮 Меню игр",
-                                      callback_data="games_main", style="primary")],
-            ]), parse_mode="HTML")
+            reply_markup=kb, parse_mode="HTML")
     else:
         db.add_loss(uid, bet)
         db.add_game(uid, "roulette", bet, 0, 0, "lose")
@@ -468,16 +395,10 @@ async def roulette_start(call: types.CallbackQuery):
             f"🎡 <b>Рулетка</b>\nВыпало {ci} <b>{n}</b>\n"
             f"❌ -{bet:.2f} {DOLLAR}\n"
             f"{WALLET} Баланс: <b>{db.get_balance(uid):.2f}</b>",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🎮 Меню игр",
-                                      callback_data="games_main", style="primary")],
-            ]), parse_mode="HTML")
+            reply_markup=kb, parse_mode="HTML")
     await call.answer()
 
 
-# ============================================================
-#              ПРЯМОЙ ЗАПУСК АРКАД
-# ============================================================
 async def start_crash_direct(message, uid, bet):
     db.update_balance(uid, -bet)
     db.add_wager(uid, bet)
@@ -487,9 +408,8 @@ async def start_crash_direct(message, uid, bet):
     msg = await message.answer(
         f"🚀 <b>Краш</b>\nМножитель: <b>1.00x</b>",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="💰 Забрать 1.00x",
-                                  callback_data=f"ccs:{uid}")],
-        ]), parse_mode="HTML")
+            [InlineKeyboardButton(text="💰 Забрать 1.00x", callback_data=f"ccs:{uid}")]]),
+        parse_mode="HTML")
     asyncio.create_task(_crash_loop(uid, msg, cp, bet))
 
 
@@ -501,9 +421,7 @@ async def play_keno_direct(message, uid, bet):
     mult = keno_multiplier(hits, 5)
     win = round(bet * mult, 2)
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🎮 Меню игр", callback_data="games_main",
-                              style="primary")],
-    ])
+        [InlineKeyboardButton(text="🎮 Меню игр", callback_data="games_main", style="primary")]])
     if mult > 0:
         credited, comm = apply_win_commission(win)
         db.update_balance(uid, credited)
@@ -513,7 +431,6 @@ async def play_keno_direct(message, uid, bet):
         give_ref_bonus(uid, credited)
         await message.answer(
             f"🎯 Кено\nУгадано: {hits}/5\n✅ +{credited:.2f} {DOLLAR}\n"
-            f"💸 Комиссия 2%: <b>-{comm:.2f}</b> {DOLLAR}\n"
             f"Баланс: <b>{db.get_balance(uid):.2f}</b>",
             reply_markup=kb, parse_mode="HTML")
     else:
@@ -535,9 +452,7 @@ async def play_roulette_direct(message, uid, bet):
     win, result = roulette_multiplier(bet, "red", n, color)
     ci = {"red":"🔴","black":"⚫","green":"🟢"}[color]
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🎮 Меню игр", callback_data="games_main",
-                              style="primary")],
-    ])
+        [InlineKeyboardButton(text="🎮 Меню игр", callback_data="games_main", style="primary")]])
     if result == "win":
         credited, comm = apply_win_commission(win)
         db.update_balance(uid, credited)
@@ -547,7 +462,6 @@ async def play_roulette_direct(message, uid, bet):
         give_ref_bonus(uid, credited)
         await message.answer(
             f"🎡 Рулетка\nВыпало {ci} <b>{n}</b>\n✅ +{credited:.2f} {DOLLAR}\n"
-            f"💸 Комиссия 2%: <b>-{comm:.2f}</b> {DOLLAR}\n"
             f"Баланс: <b>{db.get_balance(uid):.2f}</b>",
             reply_markup=kb, parse_mode="HTML")
     else:
