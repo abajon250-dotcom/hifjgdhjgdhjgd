@@ -145,9 +145,11 @@ async def withdraw_confirm(call: types.CallbackQuery, state: FSMContext):
     if method == "crypto":
         headers = {"Crypto-Pay-API-Token": CRYPTO_TOKEN}
         payload = {
-            "user_id": uid, "asset": "USDT", "amount": str(payout),
+            "user_id": uid,
+            "asset": "USDT",
+            "amount": str(payout),
             "spend_id": f"wd_{uid}_{int(payout*100)}",
-            "comment": "Вывод из казино",
+            # comment УБРАН — CryptoBot запрещает для приложений < 30 дней
         }
         try:
             async with aiohttp.ClientSession() as s:
@@ -155,7 +157,8 @@ async def withdraw_confirm(call: types.CallbackQuery, state: FSMContext):
                                   headers=headers) as r:
                     resp = await r.json()
         except Exception:
-            await call.message.edit_text("❌ Сервис недоступен.")
+            await call.message.edit_text(
+                "❌ <b>Платёжный сервис недоступен</b>\nПопробуйте позже.")
             await state.clear()
             return await call.answer()
 
@@ -168,11 +171,21 @@ async def withdraw_confirm(call: types.CallbackQuery, state: FSMContext):
                 f"✅ <b>Вывод выполнен!</b>\n"
                 f"💵 Отправлено: <b>{payout} USDT</b>\n"
                 f"Баланс: <b>{db.get_balance(uid):.2f}</b>",
-                parse_mode="HTML"
-            )
+                parse_mode="HTML")
         else:
-            await call.message.edit_text(format_error("crypto", resp),
-                                         parse_mode="HTML")
+            err = resp.get("error", {}) or {}
+            if err.get("name") == "NOT_ENOUGH_COINS":
+                msg = ("⚠️ <b>У казино нет средств на вывод</b>\n"
+                       "Попробуйте xRocket.")
+            elif err.get("name") == "AMOUNT_TOO_SMALL":
+                msg = ("❌ <b>Слишком маленькая сумма</b>\n"
+                       "CryptoBot принимает минимум <b>1 USDT</b>.")
+            elif err.get("name") == "USER_NOT_FOUND":
+                msg = ("❌ <b>Юзер не найден в CryptoBot</b>\n"
+                       "Зайдите в @CryptoBot, привяжите аккаунт.")
+            else:
+                msg = f"❌ Ошибка CryptoBot: {resp}"
+            await call.message.edit_text(msg, parse_mode="HTML")
 
     elif method == "xrocket":
         headers = {"Authorization": f"Bearer {XROCKET_TOKEN}",

@@ -1,24 +1,24 @@
 import os
-import aiohttp
 import time
+import aiohttp
 from aiogram import Router, F, types
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (LabeledPrice, PreCheckoutQuery,
                            InlineKeyboardMarkup, InlineKeyboardButton)
 from database import db
-from keyboards.inline import deposit_menu, deposit_amounts
+from keyboards.inline import deposit_menu, deposit_amounts, games_main
 from math_engine import apply_deposit_commission
-from utils.emoji import DEPOSIT, WALLET, DOLLAR
+from utils.emoji import (DOLLAR, WALLET, DEPOSIT, BET, GAMES, FLY_MONEY,
+                          CRYPTOBOT, XROCKET, STARS)
 from utils.errors import format_error
-from utils.safe_edit import safe_answer
 
 router = Router()
 
 CRYPTO_TOKEN  = os.getenv("CRYPTO_BOT_TOKEN")
 XROCKET_TOKEN = os.getenv("XROCKET_TOKEN")
 CRYPTO_API  = "https://pay.crypt.bot/api"
-XROCKET_API = "https://pay.api.xrocket.exchange/api/v1"
+XROCKET_API = "https://pay.xapi.xrocket.exchange/api/v1"
 
 
 class DepositState(StatesGroup):
@@ -26,25 +26,53 @@ class DepositState(StatesGroup):
     waiting_stars_amount  = State()
 
 
+# ============================================================
+#              ОБЩАЯ ФУНКЦИЯ — МЕНЮ ПОСЛЕ ОПЛАТЫ
+# ============================================================
+def _after_deposit_kb(uid):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🎮 Играть", callback_data="games_main",
+                              style="success")],
+        [InlineKeyboardButton(text="💼 Кошелёк", callback_data="wallet",
+                              style="primary")],
+    ])
+
+
+async def _show_after_deposit(message_or_call, uid, credited):
+    """Красивое меню после успешного пополнения."""
+    db.get_user(uid)
+    bal = db.get_balance(uid)
+    bet = db.get_bet(uid)
+
+    text = (
+        f"✅ <b>Баланс пополнен на {credited:.2f} {DOLLAR}</b>\n\n"
+        f"{GAMES} <b>Выбирайте игру!</b>\n\n"
+        f"{DOLLAR} Баланс — <b>{bal:.2f}</b>\n"
+        f"{BET} Ставка — <b>{bet}</b>"
+    )
+
+    kb = _after_deposit_kb(uid)
+    if hasattr(message_or_call, "answer"):
+        await message_or_call.answer(text, reply_markup=kb, parse_mode="HTML")
+
+
+# ============================================================
+#              МЕНЮ ПОПОЛНЕНИЯ
+# ============================================================
 @router.callback_query(F.data == "deposit")
 async def deposit_handler(call: types.CallbackQuery):
     uid = call.from_user.id
     db.get_user(uid)
     bal = db.get_balance(uid)
     bet = db.get_bet(uid)
-    s = db.get_stats(uid)
 
-    text = (
-        f"📤 <b>ПОПОЛНЕНИЕ БАЛАНСА</b>\n\n"
-        f"💰 <b>Баланс:</b> {bal:.2f} USDT\n"
-        f"🎯 <b>Ставка:</b> {bet} USDT\n"
-        f"📊 <b>Оборот:</b> {s['total_wagered']:.2f} USDT\n"
-        f"📥 <b>Пополнено всего:</b> {s['total_deposited']:.2f} USDT\n\n"
-        f"⚠️ <b>Комиссия:</b> 5% | 💵 <b>Минимум:</b> 0.5 USDT\n\n"
-        f"<b>Выберите способ 👇</b>"
-    )
-    await call.message.edit_text(text, reply_markup=deposit_menu(),
-                                 parse_mode="HTML")
+    await call.message.edit_text(
+        f"{DEPOSIT} <b>ПОПОЛНЕНИЕ БАЛАНСА</b>\n\n"
+        f"{DOLLAR} Баланс: <b>{bal:.2f}</b>\n"
+        f"{BET} Ставка: <b>{bet}</b>\n\n"
+        f"⚠️ Комиссия: <b>5%</b> | Минимум: <b>0.5 USDT</b>\n\n"
+        f"<b>Выберите способ 👇</b>",
+        reply_markup=deposit_menu(), parse_mode="HTML")
     await call.answer()
 
 
@@ -54,17 +82,14 @@ async def deposit_msg(message: types.Message):
     db.get_user(uid)
     bal = db.get_balance(uid)
     bet = db.get_bet(uid)
-    s = db.get_stats(uid)
 
-    text = (
-        f"📤 <b>ПОПОЛНЕНИЕ БАЛАНСА</b>\n\n"
-        f"💰 <b>Баланс:</b> {bal:.2f} USDT\n"
-        f"🎯 <b>Ставка:</b> {bet} USDT\n"
-        f"📊 <b>Оборот:</b> {s['total_wagered']:.2f} USDT\n\n"
-        f"⚠️ <b>Комиссия:</b> 5% | 💵 <b>Минимум:</b> 0.5 USDT\n\n"
-        f"<b>Выберите способ 👇</b>"
-    )
-    await message.answer(text, reply_markup=deposit_menu(), parse_mode="HTML")
+    await message.answer(
+        f"{DEPOSIT} <b>ПОПОЛНЕНИЕ БАЛАНСА</b>\n\n"
+        f"{DOLLAR} Баланс: <b>{bal:.2f}</b>\n"
+        f"{BET} Ставка: <b>{bet}</b>\n\n"
+        f"⚠️ Комиссия: <b>5%</b> | Минимум: <b>0.5 USDT</b>\n\n"
+        f"<b>Выберите способ 👇</b>",
+        reply_markup=deposit_menu(), parse_mode="HTML")
 
 
 @router.callback_query(F.data.startswith("dep:"))
@@ -79,20 +104,22 @@ async def deposit_method(call: types.CallbackQuery, state: FSMContext):
 
     if method == "stars":
         await call.message.edit_text(
-            "⭐ <b>Пополнение через Telegram Stars</b>\n\n"
-            "Введите количество звёзд (минимум 1).",
-            parse_mode="HTML"
-        )
+            f"⭐ <b>Пополнение через Telegram Stars</b>\n\n"
+            f"Введите количество звёзд (минимум 50).\n"
+            f"Курс: 1 ⭐ = 0.013 USDT",
+            parse_mode="HTML")
         await state.set_state(DepositState.waiting_stars_amount)
         return await call.answer()
 
     await call.message.edit_text(
-        "Выберите сумму пополнения (мин. <b>0.5 USDT</b>):",
-        reply_markup=deposit_amounts(method), parse_mode="HTML"
-    )
+        f"Выберите сумму пополнения (мин. <b>0.5 USDT</b>):",
+        reply_markup=deposit_amounts(method), parse_mode="HTML")
     await call.answer()
 
 
+# ============================================================
+#              СОЗДАНИЕ СЧЁТА
+# ============================================================
 @router.callback_query(F.data.startswith("depamt:"))
 async def create_deposit(call: types.CallbackQuery):
     _, method, amount = call.data.split(":")
@@ -103,8 +130,9 @@ async def create_deposit(call: types.CallbackQuery):
 async def custom_deposit(call: types.CallbackQuery, state: FSMContext):
     method = call.data.split(":")[1]
     await state.update_data(dep_method=method)
-    await call.message.edit_text("✏️ <b>Введите свою сумму</b> (мин. 0.5 USDT):",
-                                 parse_mode="HTML")
+    await call.message.edit_text(
+        f"✏️ <b>Введите свою сумму</b> (мин. 0.5 USDT):",
+        parse_mode="HTML")
     await state.set_state(DepositState.waiting_custom_amount)
     await call.answer()
 
@@ -117,6 +145,7 @@ async def process_custom_amount(message: types.Message, state: FSMContext):
             raise ValueError
     except Exception:
         return await message.answer("❌ Введите число ≥ 0.5")
+
     data = await state.get_data()
     method = data["dep_method"]
     await state.clear()
@@ -124,6 +153,7 @@ async def process_custom_amount(message: types.Message, state: FSMContext):
     class F:
         def __init__(s, m): s.from_user = m.from_user; s.message = m
         async def answer(s, *a, **k): pass
+
     await _process_deposit(F(message), method, amount)
 
 
@@ -131,6 +161,7 @@ async def _process_deposit(call, method: str, amount: float):
     uid = call.from_user.id
     credited, commission = apply_deposit_commission(amount)
 
+    # ---------------- CRYPTOBOT ----------------
     if method == "crypto":
         headers = {"Crypto-Pay-API-Token": CRYPTO_TOKEN}
         payload = {
@@ -149,7 +180,8 @@ async def _process_deposit(call, method: str, amount: float):
             return await call.message.answer("❌ Сервис недоступен.")
 
         if not data.get("ok"):
-            return await call.message.answer(format_error("crypto", data), parse_mode="HTML")
+            return await call.message.answer(format_error("crypto", data),
+                                             parse_mode="HTML")
 
         inv = data["result"]
         db.add_transaction(uid, "deposit", "crypto", amount, commission,
@@ -162,23 +194,26 @@ async def _process_deposit(call, method: str, amount: float):
                                   style="primary")]
         ])
         await call.message.answer(
-            f"🏦 <b>Счёт CryptoBot на {amount} USDT</b>\n"
+            f"{CRYPTOBOT} <b>Счёт CryptoBot на {amount} USDT</b>\n"
             f"⏱ Действует <b>15 минут</b>",
-            reply_markup=kb, parse_mode="HTML"
-        )
+            reply_markup=kb, parse_mode="HTML")
         return
 
+    # ---------------- XROCKET ----------------
     if method == "xrocket":
-        headers = {"Authorization": f"Bearer {XROCKET_TOKEN}",
-                   "Content-Type": "application/json", "Accept": "application/json"}
+        headers = {
+            "Authorization": f"Bearer {XROCKET_TOKEN}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
         payload = {
             "priceAmount": str(float(amount)),
             "priceCurrency": "USDT",
             "payoutCurrency": "USDT",
             "payCurrencies": ["USDT"],
             "description": f"Пополнение баланса",
-            "clientInvoiceId": f"dep_{uid}_{int(amount * 100)}_{int(time.time())}",
-            "expiresIn": 900000,
+            "clientInvoiceId": f"dep_{uid}_{int(amount*100)}_{int(time.time())}",
+            "expiresIn": 900000,  # миллисекунды!
             "customer": {"telegramId": str(uid)},
         }
         try:
@@ -191,11 +226,14 @@ async def _process_deposit(call, method: str, amount: float):
             return await call.message.answer("❌ Сервис недоступен.")
 
         if status_code >= 400:
-            return await call.message.answer(format_error("xrocket", data), parse_mode="HTML")
+            return await call.message.answer(format_error("xrocket", data),
+                                             parse_mode="HTML")
 
         inv_id = data.get("id")
         links = data.get("links", {}) or {}
-        link = links.get("telegramBotLink") or links.get("webLink") or data.get("link")
+        link = (links.get("telegramBotLink")
+                or links.get("webLink")
+                or data.get("link"))
         if not link:
             return await call.message.answer("❌ Не удалось создать счёт.")
 
@@ -208,20 +246,22 @@ async def _process_deposit(call, method: str, amount: float):
                                   style="primary")]
         ])
         await call.message.answer(
-            f"ℹ️ <b>Счёт xRocket на {amount} USDT</b>\n"
+            f"{XROCKET} <b>Счёт xRocket на {amount} USDT</b>\n"
             f"⏱ Действует <b>15 минут</b>",
-            reply_markup=kb, parse_mode="HTML"
-        )
+            reply_markup=kb, parse_mode="HTML")
 
 
+# ============================================================
+#              STARS
+# ============================================================
 @router.message(DepositState.waiting_stars_amount)
 async def stars_amount(message: types.Message, state: FSMContext):
     try:
         stars = int(message.text.strip())
-        if stars < 1:
+        if stars < 50:
             raise ValueError
     except Exception:
-        return await message.answer("❌ Введите целое число ≥ 1")
+        return await message.answer("❌ Введите целое число ≥ 50")
 
     prices = [LabeledPrice(label="Пополнение", amount=stars)]
     await message.answer_invoice(
@@ -230,11 +270,13 @@ async def stars_amount(message: types.Message, state: FSMContext):
         payload=f"stars:{stars}",
         provider_token="",
         currency="XTR",
-        prices=prices
-    )
+        prices=prices)
     await state.clear()
 
 
+# ============================================================
+#              ПРОВЕРКА ОПЛАТЫ
+# ============================================================
 @router.callback_query(F.data.startswith("chk:"))
 async def check_payment(call: types.CallbackQuery):
     parts = call.data.split(":")
@@ -251,6 +293,7 @@ async def check_payment(call: types.CallbackQuery):
                     data = await r.json()
         except Exception:
             return await call.answer("❌ Сервис недоступен.", show_alert=True)
+
         items = data.get("result", {}).get("items", [])
         if items and items[0].get("status") == "paid":
             payload = items[0].get("payload", "")
@@ -259,12 +302,8 @@ async def check_payment(call: types.CallbackQuery):
             db.add_deposit(uid, credited)
             db.add_transaction(uid, "deposit", "crypto",
                                credited, 0.0, "success", invoice_id)
-            await call.message.edit_text(
-                f"✅ <b>Оплата подтверждена!</b>\n"
-                f"💵 Зачислено: <b>{credited} USDT</b>\n"
-                f"Баланс: <b>{db.get_balance(uid):.2f}</b>",
-                parse_mode="HTML"
-            )
+            await call.message.delete()
+            await _show_after_deposit(call.message, uid, credited)
             return await call.answer()
         return await call.answer("❌ Оплата ещё не поступила.", show_alert=True)
 
@@ -272,11 +311,8 @@ async def check_payment(call: types.CallbackQuery):
         if not invoice_id:
             return await call.answer("❌ Счёт не найден.", show_alert=True)
 
-        headers = {
-            "Authorization": f"Bearer {XROCKET_TOKEN}",
-            "Accept": "application/json",
-        }
-        # ✅ ПРАВИЛЬНЫЙ URL: /invoices?id=...
+        headers = {"Authorization": f"Bearer {XROCKET_TOKEN}",
+                   "Accept": "application/json"}
         url = f"{XROCKET_API}/invoices"
         try:
             async with aiohttp.ClientSession() as s:
@@ -284,45 +320,29 @@ async def check_payment(call: types.CallbackQuery):
                                  params={"id": invoice_id}) as r:
                     status_code = r.status
                     data = await r.json()
-        except Exception as e:
-            return await call.answer(f"❌ Сеть: {e}", show_alert=True)
+        except Exception:
+            return await call.answer("❌ Сервис недоступен.", show_alert=True)
 
         if status_code != 200:
-            return await call.answer(
-                f"❌ Не удалось проверить счёт (код {status_code})",
-                show_alert=True
-            )
+            return await call.answer("❌ Не удалось проверить.", show_alert=True)
 
-        # Ответ: {"items": [{...}]}
         items = data.get("items", []) if isinstance(data, dict) else []
         if not items:
             return await call.answer("❌ Счёт не найден.", show_alert=True)
 
         inv = items[0]
         status = inv.get("status", "")
-
         if status in ("paid", "success", "completed"):
             credited = float(inv.get("priceAmount", 0))
             db.update_balance(uid, credited)
             db.add_deposit(uid, credited)
             db.add_transaction(uid, "deposit", "xrocket",
                                credited, 0.0, "success", str(invoice_id))
-            await call.message.edit_text(
-                f"✅ <b>Оплата подтверждена!</b>\n"
-                f"💵 Зачислено: <b>{credited} USDT</b>\n"
-                f"Баланс: <b>{db.get_balance(uid):.2f}</b>",
-                parse_mode="HTML"
-            )
+            await call.message.delete()
+            await _show_after_deposit(call.message, uid, credited)
             return await call.answer()
 
-        # Статус не paid — сообщаем какой именно
-        status_ru = {
-            "active": "ожидает оплаты",
-            "pending": "ожидает оплаты",
-            "expired": "срок истёк",
-            "cancelled": "отменён",
-            "failed": "ошибка оплаты",
-        }.get(status, status or "не оплачен")
+        status_ru = {"active": "ожидает оплаты", "expired": "истёк"}.get(status, status)
         return await call.answer(f"⏳ Счёт: {status_ru}", show_alert=True)
 
 
@@ -343,9 +363,4 @@ async def stars_paid(message: types.Message):
     db.add_deposit(message.from_user.id, usd)
     db.add_transaction(message.from_user.id, "deposit", "stars",
                        usd, 0.0, "success")
-    await message.answer(
-        f"⭐ <b>Оплата Stars получена!</b>\n"
-        f"💵 Зачислено: <b>{usd:.2f} USDT</b>\n"
-        f"Баланс: <b>{db.get_balance(message.from_user.id):.2f}</b>",
-        parse_mode="HTML"
-    )
+    await _show_after_deposit(message, message.from_user.id, usd)

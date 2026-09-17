@@ -31,7 +31,7 @@ def _main_text(uid, full_name):
         f"{DOLLAR} <b>Баланс — {s['balance']:.2f}</b>\n\n"
         f"{VIP} <b>VIP — {vip['progress']:.0f}%</b>\n"
         f"{vip['current'][2]} {vip['current'][1]} → {next_emoji} {next_name}\n\n"
-        f"{FLY_MONEY} Оборот: <b>{s['total_wagered']:.2f}$</b>\n"
+        f"{FLY_MONEY} Оборот: <b>{s['total_wagered']:.2f}</b>\n"
         f"{DICE} Игр: <b>{s['games_played']}</b>\n"
         f"{TIME} Дней: <b>{s['days_registered']}</b>"
     )
@@ -66,7 +66,7 @@ def _wallet_text(uid):
 
 
 # ============================================================
-#              /start с парсингом промокода и рефералки
+#              /start с парсингом payload (промокод / реф)
 # ============================================================
 @router.message(Command("start"), PVT)
 async def cmd_start(message: types.Message):
@@ -80,30 +80,25 @@ async def cmd_start(message: types.Message):
                                     reply_markup=subscribe_kb(),
                                     parse_mode="HTML")
 
-    # ============= ПАРСИНГ PAYLOAD =============
     args = message.text.split()
     if len(args) > 1:
         payload = args[1]
-
-        # Реферальная ссылка: ref123456
         if payload.startswith("ref"):
             try:
                 db.set_referrer(uid, int(payload.replace("ref", "")))
             except Exception:
                 pass
-
-        # Промокод: promo_КОД или p_КОД
         elif payload.startswith("promo_") or payload.startswith("p_"):
             code = payload.split("_", 1)[1].strip().upper()
             amount = db.use_promo(uid, code)
             if amount > 0:
                 await message.answer(
                     f"🎁 <b>Промокод активирован!</b>\n\n"
-                    f"💰 Зачислено: <b>+{amount:.2f}</b> USDT",
+                    f"{DOLLAR} Зачислено: <b>+{amount:.2f}</b>",
                     parse_mode="HTML")
             else:
                 await message.answer(
-                    f"❌ Промокод <code>{code}</code> не найден или уже использован.",
+                    f"❌ Промокод <code>{code}</code> не найден.",
                     parse_mode="HTML")
 
     db.get_user(uid)
@@ -146,8 +141,8 @@ async def btn_play(message: types.Message):
     bet = db.get_bet(uid)
     await safe_answer(message,
         f"{GAMES} <b>Выбирайте игру для ставки!</b>\n\n"
-        f"{BET} Ставка: <b>{bet}</b> {DOLLAR}\n"
-        f"{WALLET} Баланс: <b>{bal:.2f}</b> {DOLLAR}",
+        f"{DOLLAR} Баланс — <b>{bal:.2f}</b>\n"
+        f"{BET} Ставка — <b>{bet}</b>",
         reply_markup=games_main(), parse_mode="HTML")
 
 
@@ -244,8 +239,8 @@ async def games_main_handler(call: types.CallbackQuery):
     bet = db.get_bet(uid)
     await safe_edit(call.message,
         f"{GAMES} <b>Выбирайте игру для ставки!</b>\n\n"
-        f"{BET} Ставка: <b>{bet}</b> {DOLLAR}\n"
-        f"{WALLET} Баланс: <b>{bal:.2f}</b> {DOLLAR}",
+        f"{DOLLAR} Баланс — <b>{bal:.2f}</b>\n"
+        f"{BET} Ставка — <b>{bet}</b>",
         reply_markup=games_main(), parse_mode="HTML")
     await call.answer()
 

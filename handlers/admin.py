@@ -18,20 +18,15 @@ def is_admin(uid: int) -> bool:
 
 
 class AdminState(StatesGroup):
-    waiting_broadcast          = State()
-    waiting_user_id            = State()
-    waiting_balance_amt        = State()
-    waiting_promo_code         = State()
-    waiting_promo_amount       = State()
-    waiting_promo_uses         = State()
-    waiting_treasury_amt       = State()
-    waiting_treasury_platform  = State()
-    waiting_treasury_action    = State()
+    waiting_broadcast = State()
+    waiting_user_id = State()
+    waiting_balance_amt = State()
+    waiting_promo_code = State()
+    waiting_promo_amount = State()
+    waiting_promo_uses = State()
+    waiting_treasury_amt = State()
 
 
-# ============================================================
-#                    КЛАВИАТУРА
-# ============================================================
 def admin_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📊 Обновить", callback_data="admin_refresh"),
@@ -67,7 +62,6 @@ async def build_admin_text() -> str:
     return (
         f"👑 <b>АДМИН-ПАНЕЛЬ</b>\n"
         f"<i>{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}</i>\n\n"
-
         f"📊 <b>За сегодня:</b>\n"
         f"  {DICE} Игр: <b>{s['games_today']}</b>\n"
         f"  {TURNOVER} Оборот: <b>{s['turnover_today']:.2f}</b>\n"
@@ -75,12 +69,10 @@ async def build_admin_text() -> str:
         f"  {PERCENT} Профит: <b>{s['profit_today']:.2f}</b>\n"
         f"  {WALLET} Депозитов: <b>{s['dep_today']:.2f}</b> ({s['dep_count']})\n"
         f"  💸 Выводов: <b>{s['wd_today']:.2f}</b> ({s['wd_count']})\n\n"
-
         f"🌍 <b>За всё время:</b>\n"
         f"  {PROFILE} Юзеров: <b>{s['users_count']}</b>\n"
-        f"  {TURNOVER} Общий оборот: <b>{s['total_turnover']:.2f}</b>\n"
+        f"  {TURNOVER} Оборот: <b>{s['total_turnover']:.2f}</b>\n"
         f"  💼 В кошельках: <b>{s['total_balances']:.2f}</b>\n\n"
-
         f"🏆 <b>ТОП-5 за сегодня:</b>\n{top_text}"
     )
 
@@ -153,16 +145,13 @@ async def admin_treasury(call: types.CallbackQuery):
 
     text = (
         f"💰 <b>КАЗНА КАЗИНО</b>\n\n"
-
         f"🏦 <b>CryptoBot:</b> <b>{t['crypto']:.2f}</b> USDT\n"
         f"ℹ️ <b>xRocket:</b> <b>{t['xrocket']:.2f}</b> USDT\n"
         f"📊 <b>Всего в казне:</b> <b>{total:.2f}</b> USDT\n"
         f"🕒 Обновлено: <i>{upd_str}</i>\n\n"
-
         f"👥 Обязательства юзерам: <b>{users_balance:.2f}</b> USDT\n"
         f"⬇️ Пополнено: <b>{deposited:.2f}</b>\n"
         f"⬆️ Выведено: <b>{withdrawn:.2f}</b>\n\n"
-
         f"{'🟢' if reserve >= 0 else '🔴'} <b>Резерв:</b> "
         f"<b>{reserve:.2f}</b> USDT"
     )
@@ -184,7 +173,7 @@ async def admin_treasury(call: types.CallbackQuery):
 
 
 @router.callback_query(F.data == "admin_treasury_add")
-async def treasury_add(call: types.CallbackQuery, state: FSMContext):
+async def treasury_add(call: types.CallbackQuery):
     if not is_admin(call.from_user.id):
         return await call.answer("Нет доступа", show_alert=True)
     kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -195,9 +184,8 @@ async def treasury_add(call: types.CallbackQuery, state: FSMContext):
         [InlineKeyboardButton(text="🔙 Отмена", callback_data="admin_treasury",
                               style="danger")],
     ])
-    await call.message.edit_text(
-        "➕ <b>Пополнить казну</b>\n\nВыберите платформу:",
-        reply_markup=kb, parse_mode="HTML")
+    await call.message.edit_text("➕ <b>Пополнить казну</b>\n\nВыберите платформу:",
+                                 reply_markup=kb, parse_mode="HTML")
     await call.answer()
 
 
@@ -217,7 +205,7 @@ async def treasury_add_platform(call: types.CallbackQuery, state: FSMContext):
 
 
 @router.callback_query(F.data == "admin_treasury_set")
-async def treasury_set(call: types.CallbackQuery, state: FSMContext):
+async def treasury_set(call: types.CallbackQuery):
     if not is_admin(call.from_user.id):
         return await call.answer("Нет доступа", show_alert=True)
     kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -228,9 +216,8 @@ async def treasury_set(call: types.CallbackQuery, state: FSMContext):
         [InlineKeyboardButton(text="🔙 Отмена", callback_data="admin_treasury",
                               style="danger")],
     ])
-    await call.message.edit_text(
-        "✏️ <b>Установить баланс казны</b>\n\nВыберите платформу:",
-        reply_markup=kb, parse_mode="HTML")
+    await call.message.edit_text("✏️ <b>Установить баланс казны</b>\n\nВыберите платформу:",
+                                 reply_markup=kb, parse_mode="HTML")
     await call.answer()
 
 
@@ -304,7 +291,7 @@ async def admin_promo(call: types.CallbackQuery, state: FSMContext):
 async def promo_code(message: types.Message, state: FSMContext):
     if not is_admin(message.from_user.id):
         return
-    await state.update_data(code=message.text.strip())
+    await state.update_data(code=message.text.strip().upper())
     await message.answer("Введите сумму бонуса (USDT):")
     await state.set_state(AdminState.waiting_promo_amount)
 
@@ -332,12 +319,21 @@ async def promo_uses(message: types.Message, state: FSMContext):
         return await message.answer("❌ Целое число")
 
     data = await state.get_data()
-    db.create_promo(data["code"], data["amount"], uses)
+    code = data["code"].upper()
+    db.create_promo(code, data["amount"], uses)
+
+    bot_info = await message.bot.get_me()
+    promo_link = f"https://t.me/{bot_info.username}?start=promo_{code}"
+
     await message.answer(
-        f"✅ Промокод <code>{data['code']}</code> на <b>{data['amount']}</b> USDT,\n"
-        f"Использований: <b>{uses}</b>",
-        parse_mode="HTML"
-    )
+        f"✅ <b>Промокод создан!</b>\n\n"
+        f"🔑 Код: <code>{code}</code>\n"
+        f"💰 Сумма: <b>{data['amount']}</b> USDT\n"
+        f"👥 Использований: <b>{uses}</b>\n\n"
+        f"🔗 <b>Ссылка для рассылки:</b>\n"
+        f"<code>{promo_link}</code>\n\n"
+        f"<i>Юзер откроет ссылку → промокод активируется автоматически</i>",
+        parse_mode="HTML")
     await state.clear()
 
 
@@ -348,7 +344,7 @@ async def promo_uses(message: types.Message, state: FSMContext):
 async def admin_broadcast(call: types.CallbackQuery, state: FSMContext):
     if not is_admin(call.from_user.id):
         return await call.answer("Нет доступа", show_alert=True)
-    await call.message.answer("Введите текст рассылки (поддерживается HTML):")
+    await call.message.answer("Введите текст рассылки (HTML):")
     await state.set_state(AdminState.waiting_broadcast)
     await call.answer()
 
@@ -357,14 +353,11 @@ async def admin_broadcast(call: types.CallbackQuery, state: FSMContext):
 async def do_broadcast(message: types.Message, state: FSMContext):
     if not is_admin(message.from_user.id):
         return
-
     text = message.html_text
     db.cursor.execute("SELECT user_id FROM users WHERE is_banned = 0")
     users = db.cursor.fetchall()
-
     sent, failed = 0, 0
     status = await message.answer(f"📢 Начинаю... 0/{len(users)}")
-
     for i, (uid,) in enumerate(users, 1):
         try:
             await message.bot.send_message(uid, text, parse_mode="HTML")
@@ -376,11 +369,9 @@ async def do_broadcast(message: types.Message, state: FSMContext):
                 await status.edit_text(f"📢 {i}/{len(users)} | ✅{sent} ❌{failed}")
             except Exception:
                 pass
-
     await status.edit_text(
         f"✅ Готово!\nОтправлено: <b>{sent}</b>\nОшибок: <b>{failed}</b>",
-        parse_mode="HTML"
-    )
+        parse_mode="HTML")
     await state.clear()
 
 
@@ -465,14 +456,11 @@ async def admin_balance_amt(message: types.Message, state: FSMContext):
         await message.answer(
             f"✅ Выдано <b>{amount}</b> USDT → <code>{target}</code>\n"
             f"Новый баланс: <b>{db.get_balance(target):.2f}</b>",
-            parse_mode="HTML"
-        )
+            parse_mode="HTML")
         try:
             await message.bot.send_message(
-                target,
-                f"🎁 Вам выдан бонус <b>{amount}</b> USDT!",
-                parse_mode="HTML"
-            )
+                target, f"🎁 Вам выдан бонус <b>{amount}</b> USDT!",
+                parse_mode="HTML")
         except Exception:
             pass
     else:
@@ -480,8 +468,7 @@ async def admin_balance_amt(message: types.Message, state: FSMContext):
         await message.answer(
             f"✅ Списано <b>{amount}</b> USDT у <code>{target}</code>\n"
             f"Новый баланс: <b>{db.get_balance(target):.2f}</b>",
-            parse_mode="HTML"
-        )
+            parse_mode="HTML")
     await state.clear()
 
 
@@ -495,8 +482,7 @@ async def admin_users(call: types.CallbackQuery):
 
     db.cursor.execute(
         "SELECT user_id, username, balance, total_wagered "
-        "FROM users ORDER BY total_wagered DESC LIMIT 15"
-    )
+        "FROM users ORDER BY total_wagered DESC LIMIT 15")
     users = db.cursor.fetchall()
 
     text = "👥 <b>ТОП-15 по обороту:</b>\n\n"
