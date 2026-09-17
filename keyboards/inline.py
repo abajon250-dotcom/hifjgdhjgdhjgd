@@ -70,7 +70,7 @@ def games_main(uid=None):
                               icon_custom_emoji_id="5309815458990433715"),
          InlineKeyboardButton(text="Авторские", callback_data=f"game:custom{u}",
                               icon_custom_emoji_id="5309815458990433715")],
-        [InlineKeyboardButton(text="CatHome | NEWS", url="https://t.me/your_channel")],
+        [InlineKeyboardButton(text="Onyx | NEWS", url="https://t.me/+fSU_c6-PKwFhNjhi")],
     ])
 
 
