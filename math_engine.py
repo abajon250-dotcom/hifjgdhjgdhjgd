@@ -27,12 +27,14 @@ def apply_withdraw_commission(a):
 
 
 def apply_win_commission(win):
-    if win <= 0:
-        return 0.0, 0.0
+    if win <= 0: return 0.0, 0.0
     commission = round(win * WIN_COMMISSION, 2)
     return round(win - commission, 2), commission
 
 
+# ============================================================
+#              1 КУБ
+# ============================================================
 def calc_1_dice(bet, choice, v):
     win, result = 0.0, "lose"
     if choice == "even" and v % 2 == 0: win, result = bet * 1.9, "win"
@@ -52,6 +54,9 @@ def calc_1_dice(bet, choice, v):
     return round(win, 2), result
 
 
+# ============================================================
+#              2 КУБА
+# ============================================================
 def calc_2_dice(bet, choice, d1, d2):
     win, result = 0.0, "lose"
     both_even = d1 % 2 == 0 and d2 % 2 == 0
@@ -77,6 +82,9 @@ def calc_2_dice(bet, choice, d1, d2):
     return round(win, 2), result
 
 
+# ============================================================
+#              3 КУБА
+# ============================================================
 def calc_3_dice(bet, choice, d1, d2, d3):
     dice = [d1, d2, d3]
     win, result = 0.0, "lose"
@@ -96,54 +104,119 @@ def calc_3_dice(bet, choice, d1, d2, d3):
     return round(win, 2), result
 
 
+# ============================================================
+#              ФУТБОЛ (Telegram Dice: 1-5)
+#              1-2 = мимо, 3 = штанга, 4 = от штанги, 5 = центр
+# ============================================================
 def calc_football(bet, choice, v):
-    if choice == "clean" and v == 5: return round(bet * 4.7, 2), "win"
-    if choice == "any" and v in (3, 4, 5): return round(bet * 2.5, 2), "win"
-    if choice == "stuck" and v == 3: return round(bet * 4.7, 2), "win"
-    if choice == "miss" and v in (1, 2): return round(bet * 1.6, 2), "win"
-    if choice == "multi" and v in (3, 4): return round(bet * 4.7, 2), "win"
-    if choice == "double" and v == 5: return round(bet * 23, 2), "win"
-    if choice == "sniper" and v == 5: return round(bet * 1.5, 2), "win"
-    if choice == "ladder" and v in (4, 5): return round(bet * 2.8, 2), "win"
-    return 0.0, "lose"
+    win, result = 0.0, "lose"
+    if choice == "mimo" and v in (1, 2):
+        win, result = bet * 3.0, "win"
+    elif choice == "shtanga" and v == 3:
+        win, result = bet * 4.0, "win"
+    elif choice == "center" and v == 5:
+        win, result = bet * 2.0, "win"
+    elif choice == "from_shtanga" and v == 4:
+        win, result = bet * 3.5, "win"
+    elif choice == "corner" and v == 4:
+        win, result = bet * 1.8, "win"
+    return round(win, 2), result
 
 
+def football_text(v):
+    if v in (1, 2): return "🚫 Мимо ворот"
+    if v == 3:     return "🥅 В штангу"
+    if v == 4:     return "⚽ Гол от штанги"
+    return "⚽ Гол в центр"
+
+
+# ============================================================
+#              БАСКЕТ (Telegram Dice: 1-5)
+# ============================================================
 def calc_basketball(bet, choice, v):
-    if choice == "center" and v == 5: return round(bet * 5.6, 2), "win"
-    if choice == "red" and v == 1: return round(bet * 1.9, 2), "win"
-    if choice == "white" and v == 2: return round(bet * 2.8, 2), "win"
-    if choice == "bounce" and v == 1: return round(bet * 5.6, 2), "win"
-    if choice == "multi" and v == 4: return round(bet * 5.6, 2), "win"
-    if choice == "double" and v == 5: return round(bet * 33, 2), "win"
-    if choice == "ladder" and v in (3, 4): return round(bet * 3.5, 2), "win"
-    if choice == "both" and v == 5: return round(bet * 1.3, 2), "win"
-    if choice == "two_row" and v in (2, 3): return round(bet * 2.5, 2), "win"
-    if choice == "traffic" and v == 4: return round(bet * 2.7, 2), "win"
-    return 0.0, "lose"
+    win, result = 0.0, "lose"
+    if choice == "otskok" and v == 1:
+        win, result = bet * 3.0, "win"
+    elif choice == "blizko" and v == 4:
+        win, result = bet * 4.0, "win"
+    elif choice == "zastryal" and v == 3:
+        win, result = bet * 5.0, "win"
+    elif choice == "edge" and v == 2:
+        win, result = bet * 2.0, "win"
+    elif choice == "direct" and v == 5:
+        win, result = bet * 1.5, "win"
+    return round(win, 2), result
 
 
+def basketball_text(v):
+    if v == 1: return "🏀 Отскок"
+    if v == 2: return "🏀 Попал с краем"
+    if v == 3: return "🏀 Застрял"
+    if v == 4: return "🏀 Близко к кольцу"
+    return "🏀 Прямое попадание"
+
+
+# ============================================================
+#              ДАРТС (Telegram Dice: 1-6)
+# ============================================================
 def calc_darts(bet, choice, v):
-    if choice == "center" and v == 2: return round(bet * 4.7, 2), "win"
-    if choice == "nine" and v == 6: return round(bet * 4.7, 2), "win"
-    if choice == "bar" and v == 5: return round(bet * 2.5, 2), "win"
-    if choice == "miss" and v == 1: return round(bet * 2.5, 2), "win"
-    if choice == "multi" and v in (3, 4): return round(bet * 4.7, 2), "win"
-    if choice == "double" and v == 2: return round(bet * 23, 2), "win"
-    if choice == "sniper" and v == 2: return round(bet * 1.5, 2), "win"
-    if choice == "ladder" and v in (4, 5): return round(bet * 2.3, 2), "win"
-    return 0.0, "lose"
+    win, result = 0.0, "lose"
+    if choice == "miss" and v == 1:
+        win, result = bet * 3.0, "win"
+    elif choice == "bull" and v == 2:
+        win, result = bet * 5.0, "win"
+    elif choice == "s1" and v == 3:
+        win, result = bet * 2.5, "win"
+    elif choice == "s2" and v == 4:
+        win, result = bet * 2.5, "win"
+    elif choice == "s3" and v == 5:
+        win, result = bet * 2.5, "win"
+    elif choice == "s4" and v == 6:
+        win, result = bet * 2.5, "win"
+    return round(win, 2), result
 
 
+def darts_text(v):
+    if v == 1: return "🎯 Промах"
+    if v == 2: return "🎯 В центр"
+    if v == 3: return "🎯 Сектор 1"
+    if v == 4: return "🎯 Сектор 2"
+    if v == 5: return "🎯 Сектор 3"
+    return "🎯 Сектор 4"
+
+
+# ============================================================
+#              БОУЛИНГ (Telegram Dice: 1-6)
+# ============================================================
 def calc_bowling(bet, choice, v):
-    if choice == "strike" and v == 6: return round(bet * 5.6, 2), "win"
-    if choice == "miss" and v == 1: return round(bet * 5.6, 2), "win"
-    if choice == "multi" and v in (4, 5): return round(bet * 5.6, 2), "win"
-    if choice == "double" and v == 6: return round(bet * 33, 2), "win"
-    if choice == "ladder" and v in (4, 5, 6): return round(bet * 3.5, 2), "win"
-    if choice == "sum" and v >= 4: return round(bet * 8.1, 2), "win"
-    return 0.0, "lose"
+    win, result = 0.0, "lose"
+    if choice == "miss" and v == 1:
+        win, result = bet * 3.5, "win"
+    elif choice == "p1" and v == 2:
+        win, result = bet * 4.0, "win"
+    elif choice == "p3" and v == 3:
+        win, result = bet * 3.0, "win"
+    elif choice == "p4" and v == 4:
+        win, result = bet * 2.5, "win"
+    elif choice == "p5" and v == 5:
+        win, result = bet * 2.0, "win"
+    elif choice == "strike" and v == 6:
+        win, result = bet * 1.5, "win"
+    return round(win, 2), result
 
 
+def bowling_text(v):
+    if v == 1: return "🎳 Промах"
+    if v == 2: return "🎳 Сбито 1/6"
+    if v == 3: return "🎳 Сбито 3/6"
+    if v == 4: return "🎳 Сбито 4/6"
+    if v == 5: return "🎳 Сбито 5/6"
+    return "🎳 Страйк!"
+
+
+# ============================================================
+#              СЛОТЫ
+# ============================================================
 SLOT_SYMBOLS = ["7️⃣", "🍇", "🍋", "BAR", "🔔", "💎"]
 
 
@@ -153,17 +226,26 @@ def spin_slots():
 
 def calc_slots(bet, choice, reels):
     win, result = 0.0, "lose"
-    if choice == "777" and reels == ["7️⃣", "7️⃣", "7️⃣"]: win, result = bet * 60, "win"
-    elif choice == "77x" and reels[0] == reels[1] == "7️⃣": win, result = bet * 15, "win"
-    elif choice == "any" and len(set(reels)) == 1: win, result = bet * 15, "win"
-    elif choice == "lucky7" and "7️⃣" in reels: win, result = bet * 370, "win"
-    elif choice == "lines" and len(set(reels)) <= 2: win, result = bet * 150, "win"
-    elif choice == "sum": win, result = bet * 6, "win" if random.random() < 0.4 else "lose"
-    elif choice == "piggy": win, result = bet * 2.4, "win" if random.random() < 0.5 else "lose"
-    elif choice == "ladder" and len(set(reels)) == 1: win, result = bet * 27, "win"
+    if choice == "triple" and len(set(reels)) == 1:
+        win, result = bet * 60, "win"
+    elif choice == "double" and len(set(reels)) == 2:
+        win, result = bet * 15, "win"
+    elif choice == "one" and "7️⃣" in reels:
+        win, result = bet * 3, "win"
+    elif choice == "exact" and reels == ["7️⃣", "7️⃣", "7️⃣"]:
+        win, result = bet * 100, "win"
+    elif choice == "unique" and len(set(reels)) == 3:
+        win, result = bet * 2, "win"
+    elif choice == "combo" and reels.count("7️⃣") >= 2:
+        win, result = bet * 20, "win"
+    elif choice == "any" and len(set(reels)) == 1:
+        win, result = bet * 15, "win"
     return round(win, 2), result
 
 
+# ============================================================
+#              АРКАДЫ
+# ============================================================
 def mines_multiplier(mines, opened, total=25):
     if opened == 0: return 1.0
     safe = total - mines
