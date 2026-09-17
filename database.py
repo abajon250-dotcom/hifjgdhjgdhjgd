@@ -65,6 +65,24 @@ class Database:
             )
         """)
         self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_promos (
+                code TEXT PRIMARY KEY, owner_id INTEGER, amount REAL,
+                uses_left INTEGER, used_total REAL DEFAULT 0.0, created_at INTEGER
+            )
+        """)
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS checks (
+                code TEXT PRIMARY KEY, owner_id INTEGER, amount REAL,
+                used_by INTEGER DEFAULT NULL, used_at INTEGER DEFAULT 0,
+                created_at INTEGER
+            )
+        """)
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS chat_links (
+                user_id INTEGER PRIMARY KEY, link TEXT, created_at INTEGER
+            )
+        """)
+        self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS active_games (
                 user_id INTEGER PRIMARY KEY, game_type TEXT, state TEXT,
                 bet REAL, multiplier REAL, data TEXT, created_at INTEGER
@@ -233,6 +251,21 @@ class Database:
     def has_enough(self, uid, amount):
         return self.get_balance(uid) >= amount
 
+    def transfer_balance(self, from_uid, to_uid, amount):
+        if from_uid == to_uid:
+            return False, "self"
+        if amount <= 0:
+            return False, "amount"
+        if not self.has_enough(from_uid, amount):
+            return False, "no_money"
+        self.get_user(to_uid)
+        self.cursor.execute("UPDATE users SET balance = balance - ? WHERE user_id=?",
+                            (amount, from_uid))
+        self.cursor.execute("UPDATE users SET balance = balance + ? WHERE user_id=?",
+                            (amount, to_uid))
+        self.conn.commit()
+        return True, "ok"
+
     # ============ STATS ============
     def add_wager(self, uid, amount):
         self.get_user(uid)
@@ -295,7 +328,6 @@ class Database:
                 "deposited": r[4], "withdrawn": r[5], "games": r[6],
                 "days": r[7], "invited": r[8], "ref_earned": r[9]}
 
-    # ============ VIP ============
     def get_vip_info(self, uid):
         s = self.get_stats(uid)
         turnover = s["total_wagered"]
@@ -345,7 +377,7 @@ class Database:
         self.conn.commit()
         return self.cursor.lastrowid
 
-    # ============ PROMO ============
+    # ============ ADMIN PROMO ============
     def create_promo(self, code, amount, uses=1, required_wager=0.0):
         self.cursor.execute(
             "INSERT OR REPLACE INTO promocodes "
@@ -384,20 +416,118 @@ class Database:
         self.conn.commit()
         return info["amount"]
 
-    def can_take_bonus(self, uid):
-        self.get_user(uid)
-        self.cursor.execute("SELECT last_bonus FROM users WHERE user_id=?", (uid,))
+    # ============ USER PROMOS ============
+    def create_user_promo(self, code, owner_id, amount, uses):
+        total = round(amount * uses, 2)
+        if not self.has_enough(owner_id, total):
+            return False, "no_money"
+        self.get_user(owner_id)
+        self.cursor.execute("UPDATE users SET balance = balance - ? WHERE user_id=?",
+                            (total, owner_id))
+        self.cursor.execute(
+            "INSERT OR REPLACE INTO user_promos "
+            "(code, owner_id, amount, uses_left, created_at) VALUES (?,?,?,?,?)",
+            (code.upper(), owner_id, amount, uses, int(time.time())))
+        self.conn.commit()
+        return True, total
+
+    def get_user_promo(self, code):
+        self.cursor.execute(
+            "SELECT owner_id, amount, uses_left FROM user_promos WHERE code=?",
+            (code.upper(),))
         r = self.cursor.fetchone()
         if not r:
-            return True
-        return (int(time.time()) - r[0]) >= 86400
+            return None
+        return {"owner_id": r[0], "amount": r[1], "uses_left": r[2]}
 
-    def take_bonus(self, uid, amount=1.0):
+    def use_user_promo(self, uid, code):
+        info = self.get_user_promo(code)
+        if not info or info["uses_left"] <= 0:
+            return 0.0
+        self.cursor.execute("SELECT 1 FROM promo_uses WHERE user_id=? AND code=?",
+                            (uid, code.upper()))
+        if self.cursor.fetchone():
+            return 0.0
+        self.cursor.execute(
+            "UPDATE user_promos SET uses_left = uses_left - 1 WHERE code=?",
+            (code.upper(),))
+        self.cursor.execute(
+            "INSERT INTO promo_uses (user_id, code, created_at) VALUES (?,?,?)",
+            (uid, code.upper(), int(time.time())))
+        self.update_balance(uid, info["amount"])
+        self.conn.commit()
+        return info["amount"]
+
+    def get_user_promos_by_owner(self, uid):
+        try:
+            self.cursor.execute(
+                "SELECT code, amount, uses_left FROM user_promos "
+                "WHERE owner_id=? AND uses_left>0", (uid,))
+            return self.cursor.fetchall()
+        except Exception:
+            return []
+
+    # ============ CHECKS ============
+    def create_check(self, code, owner_id, amount):
+        if not self.has_enough(owner_id, amount):
+            return False
+        self.get_user(owner_id)
+        self.cursor.execute("UPDATE users SET balance = balance - ? WHERE user_id=?",
+                            (amount, owner_id))
+        self.cursor.execute(
+            "INSERT OR REPLACE INTO checks (code, owner_id, amount, created_at) "
+            "VALUES (?,?,?,?)",
+            (code.upper(), owner_id, amount, int(time.time())))
+        self.conn.commit()
+        return True
+
+    def get_check(self, code):
+        try:
+            self.cursor.execute(
+                "SELECT owner_id, amount, used_by FROM checks WHERE code=?",
+                (code.upper(),))
+            r = self.cursor.fetchone()
+            if not r:
+                return None
+            return {"owner_id": r[0], "amount": r[1], "used_by": r[2]}
+        except Exception:
+            return None
+
+    def activate_check(self, code, uid):
+        info = self.get_check(code)
+        if not info:
+            return None, "not_found"
+        if info["used_by"]:
+            return None, "used"
+        if info["owner_id"] == uid:
+            return None, "self"
+        self.cursor.execute("UPDATE checks SET used_by=?, used_at=? WHERE code=?",
+                            (uid, int(time.time()), code.upper()))
+        self.update_balance(uid, info["amount"])
+        self.cursor.execute(
+            "UPDATE users SET invited_count = invited_count + 1 WHERE user_id=?",
+            (info["owner_id"],))
+        self.cursor.execute(
+            "UPDATE users SET referrer_id=? WHERE user_id=? AND referrer_id IS NULL",
+            (info["owner_id"], uid))
+        self.conn.commit()
+        return info, "ok"
+
+    # ============ CHAT LINKS ============
+    def set_my_chat_link(self, uid, link):
         self.get_user(uid)
         self.cursor.execute(
-            "UPDATE users SET last_bonus=?, balance=balance+? WHERE user_id=?",
-            (int(time.time()), amount, uid))
+            "INSERT OR REPLACE INTO chat_links (user_id, link, created_at) "
+            "VALUES (?,?,?)", (uid, link, int(time.time())))
         self.conn.commit()
+
+    def get_my_chat_link(self, uid):
+        try:
+            self.cursor.execute("SELECT link FROM chat_links WHERE user_id=?", (uid,))
+            r = self.cursor.fetchone()
+            return r[0] if r else None
+        except Exception:
+            return None
 
     # ============ REFERRALS ============
     def set_referrer(self, uid, ref_id):
@@ -441,7 +571,6 @@ class Database:
         self.conn.commit()
 
     def withdraw_ref_to_balance(self, uid):
-        """Переносит earned_ref на balance. Возвращает сумму перевода."""
         self.get_user(uid)
         self.cursor.execute("SELECT earned_ref FROM users WHERE user_id=?", (uid,))
         r = self.cursor.fetchone()
@@ -544,6 +673,22 @@ class Database:
         self.cursor.execute(
             f"UPDATE treasury SET {col}=MAX(0, {col}+?), updated_at=? WHERE id=1",
             (delta, int(time.time())))
+        self.conn.commit()
+
+    # ============ BONUS ============
+    def can_take_bonus(self, uid):
+        self.get_user(uid)
+        self.cursor.execute("SELECT last_bonus FROM users WHERE user_id=?", (uid,))
+        r = self.cursor.fetchone()
+        if not r:
+            return True
+        return (int(time.time()) - r[0]) >= 86400
+
+    def take_bonus(self, uid, amount=1.0):
+        self.get_user(uid)
+        self.cursor.execute(
+            "UPDATE users SET last_bonus=?, balance=balance+? WHERE user_id=?",
+            (int(time.time()), amount, uid))
         self.conn.commit()
 
     def close(self):

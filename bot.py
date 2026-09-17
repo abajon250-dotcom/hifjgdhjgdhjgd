@@ -12,6 +12,7 @@ from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import Message as TgMessage
 
+
 # ============================================================
 #        ХАК: edit_text не падает на ошибки Telegram
 # ============================================================
@@ -39,6 +40,7 @@ TgMessage.edit_text = _safe_edit
 
 from handlers.start import router as start_router
 from handlers.text_commands import router as text_router
+from handlers.social import router as social_router
 from handlers.games_menu import router as games_router
 from handlers.payments import router as payments_router
 from handlers.wallet import router as wallet_router
@@ -55,20 +57,19 @@ TOKEN = os.getenv("BOT_TOKEN")
 async def set_bot_commands(bot: Bot):
     from aiogram.types import BotCommand
     await bot.set_my_commands([
-        BotCommand(command="start",   description="🚀 Запустить бота"),
-        BotCommand(command="menu",    description="📋 Главное меню"),
+        BotCommand(command="start", description="🚀 Запустить бота"),
+        BotCommand(command="menu", description="📋 Главное меню"),
         BotCommand(command="balance", description="💵 Мой баланс"),
-        BotCommand(command="games",   description="🎮 Меню игр"),
-        BotCommand(command="top",     description="🏆 Топ игроков"),
-        BotCommand(command="help",    description="❓ Помощь"),
+        BotCommand(command="games", description="🎮 Меню игр"),
+        BotCommand(command="top", description="🏆 Топ игроков"),
+        BotCommand(command="help", description="❓ Помощь"),
     ])
 
 
 async def main():
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s"
-    )
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s")
 
     if not TOKEN:
         print("❌ BOT_TOKEN не найден в .env!")
@@ -77,14 +78,13 @@ async def main():
     bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
 
-    # Только подписка в ЛС
     sub_mw = SubscriptionMiddleware()
     dp.message.middleware(sub_mw)
     dp.callback_query.middleware(sub_mw)
 
-    # ⚠️ group_router и group_filter УБРАНЫ — всё работает через text_commands
     dp.include_router(start_router)
     dp.include_router(text_router)
+    dp.include_router(social_router)
     dp.include_router(games_router)
     dp.include_router(payments_router)
     dp.include_router(wallet_router)
