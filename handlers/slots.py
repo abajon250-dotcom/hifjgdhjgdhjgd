@@ -3,9 +3,9 @@ import random
 from aiogram import Router, F, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from database import db
-from math_engine import spin_slots, calc_slots
+from math_engine import spin_slots, calc_slots, apply_win_commission
 from utils.emoji import DOLLAR, WALLET, BET, SLOTS
-from utils.notify import notify_result, notify_bet
+from utils.notify import notify_result, notify_bet, notify_dice
 from utils.user_state import get_bet
 
 router = Router()
@@ -36,16 +36,6 @@ async def _bet_msg(target, uid, bet):
     await target.answer(
         f"🎰 {mention} поставил <b>{bet:.2f}$</b> на <b>слоты</b>",
         parse_mode="HTML")
-
-
-@router.callback_query(F.data == "game:slots")
-async def slots_open(call: types.CallbackQuery):
-    from keyboards.inline import slots_menu
-    bet = db.get_bet(call.from_user.id)
-    await call.message.edit_text(
-        f"{SLOTS} <b>Слоты</b>\n\n{BET} Ставка: <b>{bet}</b> {DOLLAR}",
-        reply_markup=slots_menu(), parse_mode="HTML")
-    await call.answer()
 
 
 @router.callback_query(F.data.startswith("sl:"))
@@ -89,6 +79,10 @@ async def slots_play(call: types.CallbackQuery):
     except Exception:
         pass
     await asyncio.sleep(0.5)
+    try:
+        await notify_dice(call.bot, uid, msg)
+    except Exception:
+        pass
 
     win, result = calc_slots(bet, choice, reels)
     reels_str = f"{reels[0]} {reels[1]} {reels[2]}"
@@ -108,24 +102,26 @@ async def slots_play(call: types.CallbackQuery):
     ])
 
     if result == "win":
-        db.update_balance(uid, win)
-        db.add_win(uid, win)
-        db.add_game(uid, "slots", bet, win, mult, "win")
+        credited, comm = apply_win_commission(win)
+        db.update_balance(uid, credited)
+        db.add_win(uid, credited)
+        db.add_game(uid, "slots", bet, credited, mult, "win")
         new_bal = db.get_balance(uid)
 
         from utils.refs import give_ref_bonus
-        give_ref_bonus(uid, win)
+        give_ref_bonus(uid, credited)
 
         await msg.edit_text(
-            f"🔼 {mention} выигрывает <b>{win - bet:.2f}</b> {DOLLAR}\n\n"
+            f"🔼 {mention} выигрывает <b>{credited - bet:.2f}</b> {DOLLAR}\n\n"
             f"<blockquote>🎰 Выпало: {reels_str}\n"
+            f"💸 Комиссия 2%: <b>-{comm:.2f}</b> {DOLLAR}\n"
             f"{BET} Ставка: <b>{bet:.2f}</b> {DOLLAR}\n"
             f"{WALLET} Баланс: <b>{new_bal:.2f}</b> {DOLLAR}</blockquote>",
             reply_markup=kb, parse_mode="HTML")
 
         try:
             await notify_result(call.bot, uid, uname, "Слоты", choice,
-                                bet, win, mult, new_bal, True)
+                                bet, credited, mult, new_bal, True)
         except Exception:
             pass
     else:
@@ -188,6 +184,10 @@ async def play_slots_direct(message: types.Message, choice: str = "any",
     except Exception:
         pass
     await asyncio.sleep(0.5)
+    try:
+        await notify_dice(message.bot, uid, msg)
+    except Exception:
+        pass
 
     win, result = calc_slots(bet, choice, reels)
     reels_str = f"{reels[0]} {reels[1]} {reels[2]}"
@@ -207,23 +207,25 @@ async def play_slots_direct(message: types.Message, choice: str = "any",
     ])
 
     if result == "win":
-        db.update_balance(uid, win)
-        db.add_win(uid, win)
-        db.add_game(uid, "slots", bet, win, mult, "win")
+        credited, comm = apply_win_commission(win)
+        db.update_balance(uid, credited)
+        db.add_win(uid, credited)
+        db.add_game(uid, "slots", bet, credited, mult, "win")
         new_bal = db.get_balance(uid)
         from utils.refs import give_ref_bonus
-        give_ref_bonus(uid, win)
+        give_ref_bonus(uid, credited)
 
         await msg.edit_text(
-            f"🔼 {mention} выигрывает <b>{win - bet:.2f}</b> {DOLLAR}\n\n"
+            f"🔼 {mention} выигрывает <b>{credited - bet:.2f}</b> {DOLLAR}\n\n"
             f"<blockquote>🎰 {reels_str}\n"
+            f"💸 Комиссия 2%: <b>-{comm:.2f}</b> {DOLLAR}\n"
             f"{BET} Ставка: <b>{bet:.2f}</b> {DOLLAR}\n"
             f"{WALLET} Баланс: <b>{new_bal:.2f}</b> {DOLLAR}</blockquote>",
             reply_markup=kb, parse_mode="HTML")
 
         try:
             await notify_result(message.bot, uid, uname, "Слоты", choice,
-                                bet, win, mult, new_bal, True)
+                                bet, credited, mult, new_bal, True)
         except Exception:
             pass
     else:

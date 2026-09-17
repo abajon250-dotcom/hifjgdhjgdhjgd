@@ -60,30 +60,41 @@ async def _bet_message(target, uid, bet, game_label):
         parse_mode="HTML")
 
 
-@router.callback_query(F.data == "dice:1")
+@router.callback_query(F.data.startswith("dice:1"))
 async def tab_1(call: types.CallbackQuery):
+    uid = _parse_uid(call)
+    if not _check_owner(call, uid):
+        return await _not_owner(call)
     await call.message.edit_text(f"{DICE} <b>Выберите исход игры!</b>",
-                                 reply_markup=dice_menu_1(), parse_mode="HTML")
+                                 reply_markup=dice_menu_1(uid), parse_mode="HTML")
     await call.answer()
 
 
-@router.callback_query(F.data == "dice:2")
+@router.callback_query(F.data.startswith("dice:2"))
 async def tab_2(call: types.CallbackQuery):
+    uid = _parse_uid(call)
+    if not _check_owner(call, uid):
+        return await _not_owner(call)
     await call.message.edit_text(f"{DICE} <b>Выберите исход игры!</b>",
-                                 reply_markup=dice_menu_2(), parse_mode="HTML")
+                                 reply_markup=dice_menu_2(uid), parse_mode="HTML")
     await call.answer()
 
 
-@router.callback_query(F.data == "dice:3")
+@router.callback_query(F.data.startswith("dice:3"))
 async def tab_3(call: types.CallbackQuery):
+    uid = _parse_uid(call)
+    if not _check_owner(call, uid):
+        return await _not_owner(call)
     await call.message.edit_text(f"{DICE} <b>Выберите исход игры!</b>",
-                                 reply_markup=dice_menu_3(), parse_mode="HTML")
+                                 reply_markup=dice_menu_3(uid), parse_mode="HTML")
     await call.answer()
 
 
-@router.callback_query(F.data == "d1:allin")
+@router.callback_query(F.data.startswith("d1:allin"))
 async def d1_allin(call: types.CallbackQuery):
-    uid = call.from_user.id
+    uid = _parse_uid(call)
+    if not _check_owner(call, uid):
+        return await _not_owner(call)
     bal = db.get_balance(uid)
     if bal <= 0:
         return await call.answer("❌ Нет баланса!", show_alert=True)
@@ -91,13 +102,13 @@ async def d1_allin(call: types.CallbackQuery):
     await call.message.edit_text(
         f"💥 <b>ВБ установлен: {bal:.2f}</b> {DOLLAR}\n\n"
         f"{DICE} Выберите исход игры:",
-        reply_markup=dice_menu_1(), parse_mode="HTML")
+        reply_markup=dice_menu_1(uid), parse_mode="HTML")
     await call.answer("ВБ!")
 
 
 @router.callback_query(F.data.startswith("d1:"))
 async def play_1(call: types.CallbackQuery):
-    if call.data == "d1:allin":
+    if call.data.startswith("d1:allin"):
         return
     choice = call.data.split(":")[1]
     uid = _parse_uid(call)

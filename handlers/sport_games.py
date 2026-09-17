@@ -33,38 +33,6 @@ async def _not_owner(call: types.CallbackQuery):
     await call.answer("❌ Это не твоя игра!", show_alert=True)
 
 
-@router.callback_query(F.data == "game:football")
-async def menu_football(call: types.CallbackQuery):
-    from keyboards.inline import football_menu
-    await call.message.edit_text("⚽ <b>Футбол — выбери исход:</b>",
-                                 reply_markup=football_menu(), parse_mode="HTML")
-    await call.answer()
-
-
-@router.callback_query(F.data == "game:basketball")
-async def menu_basket(call: types.CallbackQuery):
-    from keyboards.inline import basketball_menu
-    await call.message.edit_text("🏀 <b>Баскетбол — выбери исход:</b>",
-                                 reply_markup=basketball_menu(), parse_mode="HTML")
-    await call.answer()
-
-
-@router.callback_query(F.data == "game:darts")
-async def menu_darts(call: types.CallbackQuery):
-    from keyboards.inline import darts_menu
-    await call.message.edit_text("🎯 <b>Дартс — выбери исход:</b>",
-                                 reply_markup=darts_menu(), parse_mode="HTML")
-    await call.answer()
-
-
-@router.callback_query(F.data == "game:bowling")
-async def menu_bowling(call: types.CallbackQuery):
-    from keyboards.inline import bowling_menu
-    await call.message.edit_text("🎳 <b>Боулинг — выбери исход:</b>",
-                                 reply_markup=bowling_menu(), parse_mode="HTML")
-    await call.answer()
-
-
 @router.callback_query(F.data.startswith("fc:"))
 async def play_football(call: types.CallbackQuery):
     choice = call.data.split(":")[1]
