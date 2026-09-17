@@ -138,10 +138,12 @@ async def slots_play(call: types.CallbackQuery):
 
 
 # ============================================================
-#              ПРЯМОЙ ЗАПУСК СЛОТОВ (из текста)
+#              ПРЯМОЙ ЗАПУСК СЛОТОВ (из текста и Повторить)
 # ============================================================
-async def play_slots_direct(message: types.Message, choice: str = "any"):
-    uid = message.from_user.id
+async def play_slots_direct(message: types.Message, choice: str = "any",
+                             uid: int = None):
+    if uid is None:
+        uid = message.from_user.id
     bet = get_bet(uid)
     if not db.has_enough(uid, bet):
         return await message.answer(

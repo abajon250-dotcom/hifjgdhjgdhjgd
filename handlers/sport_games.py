@@ -180,10 +180,12 @@ async def _play(call, uid, game, emoji, choice, calc_fn):
 
 
 # ============================================================
-#              ПРЯМОЙ ЗАПУСК СПОРТА (из текста)
+#              ПРЯМОЙ ЗАПУСК СПОРТА (из текста и Повторить)
 # ============================================================
-async def play_sport_direct(message: types.Message, game: str, choice: str):
-    uid = message.from_user.id
+async def play_sport_direct(message: types.Message, game: str, choice: str,
+                             uid: int = None):
+    if uid is None:
+        uid = message.from_user.id
     bet = get_bet(uid)
     if not db.has_enough(uid, bet):
         return await message.answer(

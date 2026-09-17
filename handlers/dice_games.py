@@ -140,7 +140,6 @@ async def _play(call, uid, dtype, choice):
     db.add_wager(uid, bet)
     db.inc_games(uid)
 
-    # Уведомление о ставке
     try:
         row = db.cursor.execute("SELECT username FROM users WHERE user_id=?",
                                  (uid,)).fetchone()
@@ -188,7 +187,6 @@ async def _finish(call, uid, game_key, value, bet, win, result, mult, choice="")
     uname = (row[0] if row and row[0] else f"id{uid}")
     mention = f'<a href="tg://user?id={uid}">{uname}</a>'
 
-    # Формируем callback "Повторить"
     if game_key.startswith("dice_"):
         dtype_num = game_key.replace("dice_", "")
         repeat_cb = f"replay:dice{dtype_num}:{choice}:{uid}"
@@ -245,10 +243,12 @@ async def _finish(call, uid, game_key, value, bet, win, result, mult, choice="")
 
 
 # ============================================================
-#              ПРЯМОЙ ЗАПУСК (из текстовых команд)
+#              ПРЯМОЙ ЗАПУСК (из текстовых команд и Повторить)
 # ============================================================
-async def play_dice_direct(message: types.Message, dtype: int, choice: str):
-    uid = message.from_user.id
+async def play_dice_direct(message: types.Message, dtype: int, choice: str,
+                            uid: int = None):
+    if uid is None:
+        uid = message.from_user.id
     bet = get_bet(uid)
     if not db.has_enough(uid, bet):
         return await message.answer(
@@ -260,7 +260,6 @@ async def play_dice_direct(message: types.Message, dtype: int, choice: str):
     db.add_wager(uid, bet)
     db.inc_games(uid)
 
-    # Уведомление о ставке
     try:
         row = db.cursor.execute("SELECT username FROM users WHERE user_id=?",
                                  (uid,)).fetchone()

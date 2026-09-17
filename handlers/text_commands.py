@@ -586,12 +586,13 @@ async def replay_game(call: types.CallbackQuery):
             dtype = int(game_type.replace("dice", ""))
         except Exception:
             dtype = 1
-        await play_dice_direct(call.message, dtype, choice)
+        await play_dice_direct(call.message, dtype, choice, uid=uid)
     elif game_type.startswith("sport_"):
         from handlers.sport_games import play_sport_direct
         await play_sport_direct(call.message,
-                                game_type.replace("sport_", ""), choice)
+                                game_type.replace("sport_", ""),
+                                choice, uid=uid)
     elif game_type == "slots":
         from handlers.slots import play_slots_direct
-        await play_slots_direct(call.message, choice)
+        await play_slots_direct(call.message, choice, uid=uid)
     await call.answer()
