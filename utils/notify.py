@@ -13,7 +13,6 @@ def _ids():
     )
 
 
-# Русские названия исходов
 CHOICE_TEXT = {
     "even": "чётное", "odd": "нечётное",
     "less": "меньше", "more": "больше",
@@ -35,6 +34,9 @@ CHOICE_TEXT = {
     "777": "777", "77x": "77*", "any_sl": "любая комбинация",
     "lucky7": "лаки 7", "lines": "линии", "sum": "сумма",
     "piggy": "копилка", "ladder": "лесенка",
+    "no_6": "не 6",
+    "numbers": "числа", "no_numbers": "без чисел",
+    "ladder1": "лесенка", "ladder2": "лесенка",
 }
 
 
@@ -47,6 +49,8 @@ def _label(choice):
         return f"на точное {choice.split('_')[1]}"
     if choice.startswith("prod_"):
         return f"произв. ≥ {choice.split('_')[1]}"
+    if choice.startswith("two"):
+        return f"на {choice[3:]}"
     return choice
 
 
@@ -73,6 +77,40 @@ async def _send_to_channels(bot: Bot, text: str, parse_mode="HTML"):
 
 
 # ============================================================
+#              ПЕРЕСЫЛ КУБА В КАНАЛ
+# ============================================================
+async def notify_dice(bot: Bot, uid: int, dice_msg):
+    """
+    Форвардит сообщение с кубом из ЛС игрока в SOURCE,
+    потом копирует в TARGET, потом удаляет из SOURCE.
+    Работает только для сообщений с кубиками (answer_dice).
+    """
+    source, target, _ = _ids()
+    if not source or not target:
+        return
+    if dice_msg is None:
+        return
+    try:
+        # 1. Форвард куба из ЛС игрока в SOURCE
+        fwd = await bot.forward_message(
+            chat_id=int(source),
+            from_chat_id=uid,
+            message_id=dice_msg.message_id)
+        # 2. Форвард из SOURCE в TARGET
+        await bot.forward_message(
+            chat_id=int(target),
+            from_chat_id=int(source),
+            message_id=fwd.message_id)
+        # 3. Удаляем из SOURCE
+        try:
+            await bot.delete_message(int(source), fwd.message_id)
+        except Exception:
+            pass
+    except Exception as e:
+        log.error(f"[notify_dice] {e}")
+
+
+# ============================================================
 #              УВЕДОМЛЕНИЕ О ДЕПОЗИТЕ
 # ============================================================
 async def notify_deposit(bot, uid, username, amount):
@@ -92,7 +130,7 @@ async def notify_deposit(bot, uid, username, amount):
 
 
 # ============================================================
-#              УВЕДОМЛЕНИЕ О СТАВКЕ (перед броском)
+#              СТАВКА
 # ============================================================
 async def notify_bet(bot, uid, username, game_name, bet, emoji="🎲"):
     source, target, min_bet = _ids()

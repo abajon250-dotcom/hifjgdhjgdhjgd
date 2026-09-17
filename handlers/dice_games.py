@@ -3,9 +3,9 @@ from aiogram import Router, F, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from database import db
 from keyboards.inline import dice_menu_1, dice_menu_2, dice_menu_3
-from math_engine import calc_1_dice, calc_2_dice, calc_3_dice
+from math_engine import calc_1_dice, calc_2_dice, calc_3_dice, apply_win_commission
 from utils.emoji import DOLLAR, WALLET, DICE, BET
-from utils.notify import notify_result, notify_bet
+from utils.notify import notify_result, notify_bet, notify_dice
 from utils.user_state import get_bet
 
 router = Router()
@@ -147,6 +147,10 @@ async def play_1_two(call: types.CallbackQuery):
     m = await call.message.answer_dice(emoji="🎲")
     await asyncio.sleep(3.5)
     v = m.dice.value
+    try:
+        await notify_dice(call.bot, uid, m)
+    except Exception:
+        pass
 
     if v in nums:
         win = round(bet * 2.8, 2)
@@ -185,6 +189,10 @@ async def _play(call, uid, dtype, choice):
         m = await call.message.answer_dice(emoji="🎲")
         await asyncio.sleep(3.5)
         v = m.dice.value
+        try:
+            await notify_dice(call.bot, uid, m)
+        except Exception:
+            pass
         win, result = calc_1_dice(bet, choice, v)
         value = v
     elif dtype == 2:
@@ -193,6 +201,11 @@ async def _play(call, uid, dtype, choice):
         m2 = await call.message.answer_dice(emoji="🎲")
         await asyncio.sleep(3.5)
         v1, v2 = m1.dice.value, m2.dice.value
+        try:
+            await notify_dice(call.bot, uid, m1)
+            await notify_dice(call.bot, uid, m2)
+        except Exception:
+            pass
         win, result = calc_2_dice(bet, choice, v1, v2)
         value = f"{v1} + {v2} = {v1+v2}"
     else:
@@ -203,6 +216,12 @@ async def _play(call, uid, dtype, choice):
         m3 = await call.message.answer_dice(emoji="🎲")
         await asyncio.sleep(3.5)
         v1, v2, v3 = m1.dice.value, m2.dice.value, m3.dice.value
+        try:
+            await notify_dice(call.bot, uid, m1)
+            await notify_dice(call.bot, uid, m2)
+            await notify_dice(call.bot, uid, m3)
+        except Exception:
+            pass
         win, result = calc_3_dice(bet, choice, v1, v2, v3)
         value = f"{v1} + {v2} + {v3} = {v1+v2+v3}"
 
@@ -232,27 +251,28 @@ async def _finish(call, uid, game_key, value, bet, win, result, mult, choice="")
     ])
 
     if result == "win":
-        db.update_balance(uid, win)
-        db.add_win(uid, win)
-        db.add_game(uid, game_key, bet, win, mult, "win")
+        credited, comm = apply_win_commission(win)
+        db.update_balance(uid, credited)
+        db.add_win(uid, credited)
+        db.add_game(uid, game_key, bet, credited, mult, "win")
         new_bal = db.get_balance(uid)
 
         from utils.refs import give_ref_bonus
-        give_ref_bonus(uid, win)
+        give_ref_bonus(uid, credited)
 
         await call.message.reply(
-            f"🔼 {mention} выигрывает <b>{win - bet:.2f}</b> {DOLLAR}\n\n"
+            f"🔼 {mention} выигрывает <b>{credited - bet:.2f}</b> {DOLLAR}\n\n"
             f"<blockquote>🎲 Выпало: <b>{value}</b>\n"
+            f"💸 Комиссия 2%: <b>-{comm:.2f}</b> {DOLLAR}\n"
             f"{BET} Ставка: <b>{bet:.2f}</b> {DOLLAR}\n"
             f"{WALLET} Баланс: <b>{new_bal:.2f}</b> {DOLLAR}</blockquote>",
             reply_markup=kb, parse_mode="HTML")
 
         try:
             await notify_result(call.bot, uid, uname, game_name, choice,
-                                bet, win, mult, new_bal, True)
+                                bet, credited, mult, new_bal, True)
         except Exception as e:
             print(f"notify_win: {e}")
-
     else:
         extra = -win if win < 0 else 0.0
         total_loss = bet + extra
@@ -309,6 +329,10 @@ async def play_dice_direct(message: types.Message, dtype: int, choice: str,
         m = await message.answer_dice(emoji="🎲")
         await asyncio.sleep(3.5)
         v = m.dice.value
+        try:
+            await notify_dice(message.bot, uid, m)
+        except Exception:
+            pass
         win, result = calc_1_dice(bet, choice, v)
         value = v
     else:
@@ -317,6 +341,11 @@ async def play_dice_direct(message: types.Message, dtype: int, choice: str,
         m2 = await message.answer_dice(emoji="🎲")
         await asyncio.sleep(3.5)
         v1, v2 = m1.dice.value, m2.dice.value
+        try:
+            await notify_dice(message.bot, uid, m1)
+            await notify_dice(message.bot, uid, m2)
+        except Exception:
+            pass
         win, result = calc_2_dice(bet, choice, v1, v2)
         value = f"{v1} + {v2} = {v1+v2}"
 
@@ -336,23 +365,25 @@ async def play_dice_direct(message: types.Message, dtype: int, choice: str,
     ])
 
     if result == "win":
-        db.update_balance(uid, win)
-        db.add_win(uid, win)
-        db.add_game(uid, f"dice_{dtype}", bet, win, mult, "win")
+        credited, comm = apply_win_commission(win)
+        db.update_balance(uid, credited)
+        db.add_win(uid, credited)
+        db.add_game(uid, f"dice_{dtype}", bet, credited, mult, "win")
         new_bal = db.get_balance(uid)
         from utils.refs import give_ref_bonus
-        give_ref_bonus(uid, win)
+        give_ref_bonus(uid, credited)
 
         await message.answer(
-            f"🔼 {mention} выигрывает <b>{win - bet:.2f}</b> {DOLLAR}\n\n"
+            f"🔼 {mention} выигрывает <b>{credited - bet:.2f}</b> {DOLLAR}\n\n"
             f"<blockquote>🎲 Выпало: <b>{value}</b>\n"
+            f"💸 Комиссия 2%: <b>-{comm:.2f}</b> {DOLLAR}\n"
             f"{BET} Ставка: <b>{bet:.2f}</b> {DOLLAR}\n"
             f"{WALLET} Баланс: <b>{new_bal:.2f}</b> {DOLLAR}</blockquote>",
             reply_markup=kb, parse_mode="HTML")
 
         try:
             await notify_result(message.bot, uid, uname, "Куб", choice,
-                                bet, win, mult, new_bal, True)
+                                bet, credited, mult, new_bal, True)
         except Exception as e:
             print(f"notify_win: {e}")
     else:

@@ -2,12 +2,20 @@ import asyncio
 from aiogram import Router, F, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from database import db
-from math_engine import calc_football, calc_basketball, calc_darts, calc_bowling
+from math_engine import (calc_football, calc_basketball,
+                          calc_darts, calc_bowling, apply_win_commission)
 from utils.emoji import DOLLAR, WALLET, BET
-from utils.notify import notify_result, notify_bet
+from utils.notify import notify_result, notify_bet, notify_dice
 from utils.user_state import get_bet
 
 router = Router()
+
+GAME_LABEL = {
+    "football": "футбол",
+    "basketball": "баскет",
+    "darts": "дартс",
+    "bowling": "боулинг",
+}
 
 
 def _parse_uid(call: types.CallbackQuery) -> int:
@@ -59,8 +67,7 @@ async def menu_bowling(call: types.CallbackQuery):
 
 @router.callback_query(F.data.startswith("fc:"))
 async def play_football(call: types.CallbackQuery):
-    parts = call.data.split(":")
-    choice = parts[1]
+    choice = call.data.split(":")[1]
     uid = _parse_uid(call)
     if not _check_owner(call, uid):
         return await _not_owner(call)
@@ -69,8 +76,7 @@ async def play_football(call: types.CallbackQuery):
 
 @router.callback_query(F.data.startswith("bc:"))
 async def play_basket(call: types.CallbackQuery):
-    parts = call.data.split(":")
-    choice = parts[1]
+    choice = call.data.split(":")[1]
     uid = _parse_uid(call)
     if not _check_owner(call, uid):
         return await _not_owner(call)
@@ -79,8 +85,7 @@ async def play_basket(call: types.CallbackQuery):
 
 @router.callback_query(F.data.startswith("dc:"))
 async def play_darts(call: types.CallbackQuery):
-    parts = call.data.split(":")
-    choice = parts[1]
+    choice = call.data.split(":")[1]
     uid = _parse_uid(call)
     if not _check_owner(call, uid):
         return await _not_owner(call)
@@ -89,12 +94,21 @@ async def play_darts(call: types.CallbackQuery):
 
 @router.callback_query(F.data.startswith("wc:"))
 async def play_bowling(call: types.CallbackQuery):
-    parts = call.data.split(":")
-    choice = parts[1]
+    choice = call.data.split(":")[1]
     uid = _parse_uid(call)
     if not _check_owner(call, uid):
         return await _not_owner(call)
     await _play(call, uid, "bowling", "🎳", choice, calc_bowling)
+
+
+async def _bet_msg(target, uid, bet, label):
+    row = db.cursor.execute("SELECT username FROM users WHERE user_id=?",
+                             (uid,)).fetchone()
+    uname = row[0] if row and row[0] else f"id{uid}"
+    mention = f'<a href="tg://user?id={uid}">{uname}</a>'
+    await target.answer(
+        f"🎲 {mention} поставил <b>{bet:.2f}$</b> на <b>{label}</b>",
+        parse_mode="HTML")
 
 
 async def _play(call, uid, game, emoji, choice, calc_fn):
@@ -114,14 +128,16 @@ async def _play(call, uid, game, emoji, choice, calc_fn):
     except Exception:
         pass
 
-    await call.message.edit_text(
-        f"{emoji} Играем... Ставка: <b>{bet}</b> {DOLLAR}",
-        parse_mode="HTML")
+    await _bet_msg(call.message, uid, bet, GAME_LABEL[game])
     await call.answer()
 
     m = await call.message.answer_dice(emoji=emoji)
     await asyncio.sleep(3.5)
     v = m.dice.value
+    try:
+        await notify_dice(call.bot, uid, m)
+    except Exception:
+        pass
 
     win, result = calc_fn(bet, choice, v)
     mult = win / bet if bet and win > 0 else 0
@@ -140,24 +156,26 @@ async def _play(call, uid, game, emoji, choice, calc_fn):
     ])
 
     if result == "win":
-        db.update_balance(uid, win)
-        db.add_win(uid, win)
-        db.add_game(uid, f"sport_{game}", bet, win, mult, "win")
+        credited, comm = apply_win_commission(win)
+        db.update_balance(uid, credited)
+        db.add_win(uid, credited)
+        db.add_game(uid, f"sport_{game}", bet, credited, mult, "win")
         new_bal = db.get_balance(uid)
 
         from utils.refs import give_ref_bonus
-        give_ref_bonus(uid, win)
+        give_ref_bonus(uid, credited)
 
         await call.message.reply(
-            f"🔼 {mention} выигрывает <b>{win - bet:.2f}</b> {DOLLAR}\n\n"
+            f"🔼 {mention} выигрывает <b>{credited - bet:.2f}</b> {DOLLAR}\n\n"
             f"<blockquote>{emoji} Выпало: <b>{v}</b>\n"
+            f"💸 Комиссия 2%: <b>-{comm:.2f}</b> {DOLLAR}\n"
             f"{BET} Ставка: <b>{bet:.2f}</b> {DOLLAR}\n"
             f"{WALLET} Баланс: <b>{new_bal:.2f}</b> {DOLLAR}</blockquote>",
             reply_markup=kb, parse_mode="HTML")
 
         try:
             await notify_result(call.bot, uid, uname, game.capitalize(),
-                                choice, bet, win, mult, new_bal, True)
+                                choice, bet, credited, mult, new_bal, True)
         except Exception:
             pass
     else:
@@ -180,7 +198,7 @@ async def _play(call, uid, game, emoji, choice, calc_fn):
 
 
 # ============================================================
-#              ПРЯМОЙ ЗАПУСК СПОРТА (из текста и Повторить)
+#              ПРЯМОЙ ЗАПУСК (текст + Повторить)
 # ============================================================
 async def play_sport_direct(message: types.Message, game: str, choice: str,
                              uid: int = None):
@@ -203,19 +221,21 @@ async def play_sport_direct(message: types.Message, game: str, choice: str,
 
     try:
         row = db.cursor.execute("SELECT username FROM users WHERE user_id=?",
-                                (uid,)).fetchone()
+                                 (uid,)).fetchone()
         uname = row[0] if row and row[0] else f"id{uid}"
-        mention = f'<a href="tg://user?id={uid}">{uname}</a>'
+        await notify_bet(message.bot, uid, uname, game.capitalize(), bet, emoji)
     except Exception:
         pass
 
-    await message.answer(
-        f"{emoji} {mention} поставил <b>{bet:.2f}$</b> на <b>{game}</b>",
-        parse_mode="HTML")
+    await _bet_msg(message, uid, bet, GAME_LABEL[game])
 
     m = await message.answer_dice(emoji=emoji)
     await asyncio.sleep(3.5)
     v = m.dice.value
+    try:
+        await notify_dice(message.bot, uid, m)
+    except Exception:
+        pass
 
     if game == "football":
         win, result = calc_football(bet, choice, v)
@@ -242,23 +262,25 @@ async def play_sport_direct(message: types.Message, game: str, choice: str,
     ])
 
     if result == "win":
-        db.update_balance(uid, win)
-        db.add_win(uid, win)
-        db.add_game(uid, f"sport_{game}", bet, win, mult, "win")
+        credited, comm = apply_win_commission(win)
+        db.update_balance(uid, credited)
+        db.add_win(uid, credited)
+        db.add_game(uid, f"sport_{game}", bet, credited, mult, "win")
         new_bal = db.get_balance(uid)
         from utils.refs import give_ref_bonus
-        give_ref_bonus(uid, win)
+        give_ref_bonus(uid, credited)
 
         await message.answer(
-            f"🔼 {mention} выигрывает <b>{win - bet:.2f}</b> {DOLLAR}\n\n"
+            f"🔼 {mention} выигрывает <b>{credited - bet:.2f}</b> {DOLLAR}\n\n"
             f"<blockquote>{emoji} Выпало: <b>{v}</b>\n"
+            f"💸 Комиссия 2%: <b>-{comm:.2f}</b> {DOLLAR}\n"
             f"{BET} Ставка: <b>{bet:.2f}</b> {DOLLAR}\n"
             f"{WALLET} Баланс: <b>{new_bal:.2f}</b> {DOLLAR}</blockquote>",
             reply_markup=kb, parse_mode="HTML")
 
         try:
             await notify_result(message.bot, uid, uname, game.capitalize(),
-                                choice, bet, win, mult, new_bal, True)
+                                choice, bet, credited, mult, new_bal, True)
         except Exception:
             pass
     else:
