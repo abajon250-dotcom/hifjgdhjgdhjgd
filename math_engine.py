@@ -12,8 +12,7 @@ STARS_TO_USD = 0.013
 MIN_DEPOSIT = 0.2
 MIN_WITHDRAW = 1.0
 WIN_COMMISSION = 0.10
-
-SPORT_MULT = 5.5  # ×5.5 на любой выигрыш в спорте
+SPORT_MULT = 5.5
 
 
 def stars_to_usd(stars): return round(stars * STARS_TO_USD, 2)
@@ -109,46 +108,45 @@ def calc_3_dice(bet, choice, d1, d2, d3):
 # ============================================================
 #              СПОРТ — все выигрыши ×5.5
 # ============================================================
+# ФУТБОЛ: 1=мимо, 2=штанга, 3=застрял, 4=от штанги, 5=чистый гол
 def calc_football(bet, choice, v):
     win, result = 0.0, "lose"
-    if choice == "mimo" and v in (1, 2):
-        win, result = bet * SPORT_MULT, "win"
-    elif choice == "shtanga" and v == 3:
-        win, result = bet * SPORT_MULT, "win"
-    elif choice == "center" and v == 5:
-        win, result = bet * SPORT_MULT, "win"
-    elif choice == "from_shtanga" and v == 4:
-        win, result = bet * SPORT_MULT, "win"
-    elif choice == "corner" and v == 4:
-        win, result = bet * SPORT_MULT, "win"
+    if choice == "mimo" and v == 1: win, result = bet * SPORT_MULT, "win"
+    elif choice == "shtanga" and v == 2: win, result = bet * SPORT_MULT, "win"
+    elif choice == "zastryal" and v == 3: win, result = bet * SPORT_MULT, "win"
+    elif choice == "from_shtanga" and v == 4: win, result = bet * SPORT_MULT, "win"
+    elif choice == "center" and v == 5: win, result = bet * SPORT_MULT, "win"
     return round(win, 2), result
 
 
 def football_text(v):
-    if v in (1, 2): return "🚫 Мимо ворот"
-    if v == 3:     return "🥅 В штангу"
-    if v == 4:     return "⚽ Гол от штанги"
-    return "⚽ Гол в центр"
+    if v == 1: return "🚫 Мимо ворот"
+    if v == 2: return "🥅 В штангу"
+    if v == 3: return "🧱 Застрял мяч"
+    if v == 4: return "⚽ Гол от штанги"
+    return "⚽ Чистый гол в центр"
 
 
+# БАСКЕТ: 1=отскок, 2=с краем, 3=застрял, 4=близко, 5=прямое
 def calc_basketball(bet, choice, v):
     win, result = 0.0, "lose"
     if choice == "otskok" and v == 1: win, result = bet * SPORT_MULT, "win"
-    elif choice == "blizko" and v == 4: win, result = bet * SPORT_MULT, "win"
-    elif choice == "zastryal" and v == 3: win, result = bet * SPORT_MULT, "win"
     elif choice == "edge" and v == 2: win, result = bet * SPORT_MULT, "win"
+    elif choice == "zastryal" and v == 3: win, result = bet * SPORT_MULT, "win"
+    elif choice == "blizko" and v == 4: win, result = bet * SPORT_MULT, "win"
     elif choice == "direct" and v == 5: win, result = bet * SPORT_MULT, "win"
     return round(win, 2), result
 
 
 def basketball_text(v):
     if v == 1: return "🏀 Отскок"
-    if v == 2: return "🏀 Попал с краем"
+    if v == 2: return "🏀 С краем"
     if v == 3: return "🏀 Застрял"
-    if v == 4: return "🏀 Близко к кольцу"
+    if v == 4: return "🏀 Близко"
     return "🏀 Прямое попадание"
 
 
+# ДАРТС: 1=промах, 2=в центр, 3-6=секторы
 def calc_darts(bet, choice, v):
     win, result = 0.0, "lose"
     if choice == "miss" and v == 1: win, result = bet * SPORT_MULT, "win"
@@ -169,6 +167,7 @@ def darts_text(v):
     return "🎯 Сектор 4"
 
 
+# БОУЛИНГ: 1=промах, 2-5=кегли, 6=страйк
 def calc_bowling(bet, choice, v):
     win, result = 0.0, "lose"
     if choice == "miss" and v == 1: win, result = bet * SPORT_MULT, "win"
@@ -226,11 +225,10 @@ def mines_multiplier(mines, opened, total=25):
 
 
 TOWER_MAX_LEVEL = 5
-TOWER_BASE = 1.5  # x1.5 каждый уровень
+TOWER_BASE = 1.5
 
 
 def tower_multiplier(level):
-    """Башня — 5 уровней, каждый ×1.5"""
     if level <= 0: return 1.0
     if level > TOWER_MAX_LEVEL: level = TOWER_MAX_LEVEL
     return round((TOWER_BASE ** level), 2)

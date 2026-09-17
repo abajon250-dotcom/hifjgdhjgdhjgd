@@ -19,10 +19,20 @@ GAME_LABEL = {"football": "Футбол", "basketball": "Баскет",
 TEXT_FN = {"football": football_text, "basketball": basketball_text,
            "darts": darts_text, "bowling": bowling_text}
 
+CHOICE_LABEL = {
+    "mimo": "мимо", "shtanga": "в штангу", "zastryal": "застрял",
+    "from_shtanga": "от штанги", "center": "в центр",
+    "otskok": "отскок", "edge": "край", "blizko": "близко", "direct": "прямое",
+    "miss": "промах", "bull": "в центр",
+    "s1": "сектор 1", "s2": "сектор 2", "s3": "сектор 3", "s4": "сектор 4",
+    "p1": "1/6", "p3": "3/6", "p4": "4/6", "p5": "5/6", "strike": "страйк",
+}
+
 
 def _parse_uid(call):
     parts = call.data.split(":")
-    if parts and parts[-1].isdigit() and len(parts[-1]) > 5: return int(parts[-1])
+    if parts and parts[-1].isdigit() and len(parts[-1]) > 5:
+        return int(parts[-1])
     return call.from_user.id
 
 
@@ -31,6 +41,15 @@ def _check_owner(call, uid): return call.from_user.id == uid
 
 async def _not_owner(call):
     await call.answer("❌ Это не твоя игра!", show_alert=True)
+
+
+async def _bet_msg(target, uid, bet, label):
+    row = db.cursor.execute("SELECT username FROM users WHERE user_id=?",
+                             (uid,)).fetchone()
+    uname = row[0] if row and row[0] else f"id{uid}"
+    mention = f'<a href="tg://user?id={uid}">{uname}</a>'
+    await target.answer(f"🎲 {mention} поставил <b>{bet:.2f}$</b> на <b>{label}</b>",
+                        parse_mode="HTML")
 
 
 @router.callback_query(F.data.startswith("fc:"))
@@ -65,14 +84,6 @@ async def play_bowling(call: types.CallbackQuery):
     await _play(call, uid, "bowling", "🎳", choice, calc_bowling)
 
 
-async def _bet_msg(target, uid, bet, label):
-    row = db.cursor.execute("SELECT username FROM users WHERE user_id=?", (uid,)).fetchone()
-    uname = row[0] if row and row[0] else f"id{uid}"
-    mention = f'<a href="tg://user?id={uid}">{uname}</a>'
-    await target.answer(f"🎲 {mention} поставил <b>{bet:.2f}$</b> на <b>{label}</b>",
-                        parse_mode="HTML")
-
-
 async def _play(call, uid, game, emoji, choice, calc_fn):
     bet = db.get_bet(uid)
     if not db.has_enough(uid, bet):
@@ -82,12 +93,15 @@ async def _play(call, uid, game, emoji, choice, calc_fn):
     db.inc_games(uid)
 
     try:
-        row = db.cursor.execute("SELECT username FROM users WHERE user_id=?", (uid,)).fetchone()
+        row = db.cursor.execute("SELECT username FROM users WHERE user_id=?",
+                                 (uid,)).fetchone()
         uname = row[0] if row and row[0] else f"id{uid}"
         await notify_bet(call.bot, uid, uname, GAME_LABEL[game], bet, emoji)
-    except Exception: pass
+    except Exception:
+        pass
 
-    await _bet_msg(call.message, uid, bet, GAME_LABEL[game])
+    await _bet_msg(call.message, uid, bet,
+                   f"{GAME_LABEL[game]} — {CHOICE_LABEL.get(choice, choice)}")
     await call.answer()
 
     m = await call.message.answer_dice(emoji=emoji)
@@ -98,14 +112,17 @@ async def _play(call, uid, game, emoji, choice, calc_fn):
     mult = win / bet if bet and win > 0 else 0
     disp = TEXT_FN[game](v)
 
-    row = db.cursor.execute("SELECT username FROM users WHERE user_id=?", (uid,)).fetchone()
+    row = db.cursor.execute("SELECT username FROM users WHERE user_id=?",
+                             (uid,)).fetchone()
     uname = row[0] if row and row[0] else f"id{uid}"
     mention = f'<a href="tg://user?id={uid}">{uname}</a>'
 
     repeat_cb = f"replay:sport_{game}:{choice}:{uid}"
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔁 Повторить", callback_data=repeat_cb, style="success")],
-        [InlineKeyboardButton(text="🎮 Меню игр", callback_data="games_main", style="primary")]])
+        [InlineKeyboardButton(text="🔁 Повторить",
+                              callback_data=repeat_cb, style="success")],
+        [InlineKeyboardButton(text="🎮 Меню игр",
+                              callback_data="games_main", style="primary")]])
 
     if result == "win":
         credited, comm = apply_win_commission(win)
@@ -124,7 +141,8 @@ async def _play(call, uid, game, emoji, choice, calc_fn):
         try:
             await notify_result(call.bot, uid, uname, GAME_LABEL[game],
                                 choice, bet, credited, mult, new_bal, True)
-        except Exception: pass
+        except Exception:
+            pass
     else:
         db.add_loss(uid, bet)
         db.add_game(uid, f"sport_{game}", bet, 0, 0, "lose")
@@ -138,14 +156,14 @@ async def _play(call, uid, game, emoji, choice, calc_fn):
         try:
             await notify_result(call.bot, uid, uname, GAME_LABEL[game],
                                 choice, bet, 0, 0, new_bal, False)
-        except Exception: pass
+        except Exception:
+            pass
 
 
-# ============================================================
-#              ПРЯМОЙ ЗАПУСК
-# ============================================================
-async def play_sport_direct(message: types.Message, game: str, choice: str, uid: int = None):
-    if uid is None: uid = message.from_user.id
+async def play_sport_direct(message: types.Message, game: str, choice: str,
+                             uid: int = None):
+    if uid is None:
+        uid = message.from_user.id
     bet = get_bet(uid)
     if not db.has_enough(uid, bet):
         return await message.answer(
@@ -154,37 +172,48 @@ async def play_sport_direct(message: types.Message, game: str, choice: str, uid:
     db.update_balance(uid, -bet)
     db.add_wager(uid, bet)
     db.inc_games(uid)
-    emoji_map = {"football": "⚽", "basketball": "🏀", "darts": "🎯", "bowling": "🎳"}
+    emoji_map = {"football": "⚽", "basketball": "🏀",
+                 "darts": "🎯", "bowling": "🎳"}
     emoji = emoji_map[game]
 
     try:
-        row = db.cursor.execute("SELECT username FROM users WHERE user_id=?", (uid,)).fetchone()
+        row = db.cursor.execute("SELECT username FROM users WHERE user_id=?",
+                                 (uid,)).fetchone()
         uname = row[0] if row and row[0] else f"id{uid}"
         await notify_bet(message.bot, uid, uname, GAME_LABEL[game], bet, emoji)
-    except Exception: pass
+    except Exception:
+        pass
 
-    await _bet_msg(message, uid, bet, GAME_LABEL[game])
+    await _bet_msg(message, uid, bet,
+                   f"{GAME_LABEL[game]} — {CHOICE_LABEL.get(choice, choice)}")
 
     m = await message.answer_dice(emoji=emoji)
     await asyncio.sleep(3.5)
     v = m.dice.value
 
-    if game == "football": win, result = calc_football(bet, choice, v)
-    elif game == "basketball": win, result = calc_basketball(bet, choice, v)
-    elif game == "darts": win, result = calc_darts(bet, choice, v)
-    else: win, result = calc_bowling(bet, choice, v)
+    if game == "football":
+        win, result = calc_football(bet, choice, v)
+    elif game == "basketball":
+        win, result = calc_basketball(bet, choice, v)
+    elif game == "darts":
+        win, result = calc_darts(bet, choice, v)
+    else:
+        win, result = calc_bowling(bet, choice, v)
 
     mult = win / bet if bet and win > 0 else 0
     disp = TEXT_FN[game](v)
 
-    row = db.cursor.execute("SELECT username FROM users WHERE user_id=?", (uid,)).fetchone()
+    row = db.cursor.execute("SELECT username FROM users WHERE user_id=?",
+                             (uid,)).fetchone()
     uname = row[0] if row and row[0] else f"id{uid}"
     mention = f'<a href="tg://user?id={uid}">{uname}</a>'
 
     repeat_cb = f"replay:sport_{game}:{choice}:{uid}"
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔁 Повторить", callback_data=repeat_cb, style="success")],
-        [InlineKeyboardButton(text="🎮 Меню игр", callback_data="games_main", style="primary")]])
+        [InlineKeyboardButton(text="🔁 Повторить",
+                              callback_data=repeat_cb, style="success")],
+        [InlineKeyboardButton(text="🎮 Меню игр",
+                              callback_data="games_main", style="primary")]])
 
     if result == "win":
         credited, comm = apply_win_commission(win)
@@ -203,7 +232,8 @@ async def play_sport_direct(message: types.Message, game: str, choice: str, uid:
         try:
             await notify_result(message.bot, uid, uname, GAME_LABEL[game],
                                 choice, bet, credited, mult, new_bal, True)
-        except Exception: pass
+        except Exception:
+            pass
     else:
         db.add_loss(uid, bet)
         db.add_game(uid, f"sport_{game}", bet, 0, 0, "lose")
@@ -217,4 +247,5 @@ async def play_sport_direct(message: types.Message, game: str, choice: str, uid:
         try:
             await notify_result(message.bot, uid, uname, GAME_LABEL[game],
                                 choice, bet, 0, 0, new_bal, False)
-        except Exception: pass
+        except Exception:
+            pass

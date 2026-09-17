@@ -4,7 +4,10 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from database import db
 from keyboards.inline import (games_main, deposit_menu, withdraw_menu,
-                              back_menu, mines_count_menu)
+                              back_menu, mines_count_menu,
+                              main_menu_inline, dice_menu_1,
+                              football_menu, basketball_menu,
+                              darts_menu, bowling_menu, slots_menu)
 from utils.user_state import get_bet, set_bet
 from utils.emoji import (DOLLAR, WALLET, BET, FLY_MONEY, DICE, PROFILE,
                           STATS, REF, TOP, VIP, GAMES, TIME)
@@ -111,40 +114,30 @@ async def cmd_help(message: types.Message):
         f"⚙️ <b>Помощь</b>\n\n"
         f"{BET} Текущая ставка: <b>{bet}</b> {DOLLAR}\n\n"
         f"📝 <b>Основные:</b>\n"
-        f"• <code>баланс</code> — кошелёк\n"
         f"• <code>меню</code> — главное меню\n"
         f"• <code>игры</code> — меню игр\n"
-        f"• <code>профиль</code> — профиль\n"
-        f"• <code>топ</code> — топ игроков\n"
+        f"• <code>баланс</code> / <code>профиль</code> / <code>топ</code>\n"
         f"• <code>wager</code> — статистика\n\n"
         f"💰 <b>Ставка:</b> <code>5$</code> или <code>ставка 5</code>\n"
         f"• <code>вб</code> — весь баланс\n"
         f"• <code>деп 5</code> / <code>вывод 5</code>\n"
         f"• <code>промо КОД</code>\n\n"
-        f"🎲 <b>Кубики:</b>\n"
-        f"• <code>куб 5</code> — на число\n"
-        f"• <code>куб чет</code> / <code>куб нечет</code>\n"
-        f"• <code>куб больше</code> / <code>куб меньше</code>\n"
-        f"• <code>куб число 5</code>\n"
-        f"• <code>куб нет 6</code>\n"
+        f"🎮 <b>Открыть игру:</b>\n"
+        f"• <code>куб</code> / <code>футбол</code> / <code>баскет</code>\n"
+        f"• <code>дартс</code> / <code>боулинг</code> / <code>слоты</code>\n"
+        f"• <code>мины</code> / <code>башня</code> / <code>краш</code>\n"
+        f"• <code>кено</code> / <code>рулетка</code>\n\n"
+        f"🎲 <b>Быстрые кубики:</b>\n"
+        f"• <code>куб 5</code> / <code>куб чет</code> / <code>куб нечет</code>\n"
+        f"• <code>куб больше</code> / <code>куб меньше</code> / <code>куб нет 6</code>\n"
         f"• <code>куб 7-</code> / <code>куб 7+</code> / <code>куб 7</code>\n\n"
-        f"⚽ <b>Спорт (пиши пару слов):</b>\n"
-        f"• <code>футбол мимо</code> / <code>футбол штанга</code> / <code>футбол центр</code>\n"
-        f"• <code>футбол отштанги</code> / <code>футбол угол</code>\n"
-        f"• <code>баскет отскок</code> / <code>баскет близко</code> / <code>баскет застрял</code>\n"
-        f"• <code>баскет край</code> / <code>баскет прямое</code>\n"
-        f"• <code>дартс промах</code> / <code>дартс центр</code>\n"
-        f"• <code>дартс с1</code> / <code>дартс с2</code> / <code>дартс с3</code> / <code>дартс с4</code>\n"
-        f"• <code>боулинг промах</code> / <code>боулинг 1</code> / <code>боулинг 3</code>\n"
-        f"• <code>боулинг 4</code> / <code>боулинг 5</code> / <code>боулинг страйк</code>\n\n"
-        f"🎮 <b>Остальные:</b>\n"
-        f"• <code>слоты</code> / <code>мины</code> / <code>башня</code>\n"
-        f"• <code>краш</code> / <code>кено</code> / <code>рулетка</code>\n\n"
-        f"💸 <b>Соц:</b>\n"
-        f"• <code>перевод 5 @юзер</code>\n"
-        f"• <code>создатьпромо 1 10</code> — промо 1$ × 10\n"
-        f"• <code>чек 25</code> — чек на 25$\n"
-        f"• <code>мойчат ССЫЛКА</code>",
+        f"⚽ <b>Спорт (пара слов):</b>\n"
+        f"• <code>футбол мимо</code> / <code>футбол штанга</code> / <code>футбол застрял</code>\n"
+        f"• <code>футбол отштанги</code> / <code>футбол центр</code>\n"
+        f"• <code>баскет отскок</code> / <code>баскет край</code> / <code>баскет застрял</code>\n"
+        f"• <code>баскет близко</code> / <code>баскет прямое</code>\n"
+        f"• <code>дартс промах</code> / <code>дартс центр</code> / <code>дартс с1</code>\n"
+        f"• <code>боулинг промах</code> / <code>боулинг 1</code> / <code>боулинг страйк</code>",
         reply_markup=back_menu(), parse_mode="HTML")
 
 
@@ -174,18 +167,6 @@ async def cmd_balance(message: types.Message):
         reply_markup=kb, parse_mode="HTML")
 
 
-@router.message(F.text.regexp(r"(?i)^(игры|играть|и|games|game)$"))
-async def cmd_games(message: types.Message):
-    uid = message.from_user.id
-    bal = db.get_balance(uid)
-    bet = db.get_bet(uid)
-    await message.answer(
-        f"{GAMES} <b>Выбирайте игру для ставки!</b>\n\n"
-        f"{DOLLAR} Баланс — <b>{bal:.2f}</b>\n"
-        f"{BET} Ставка — <b>{bet}</b>",
-        reply_markup=games_main(uid), parse_mode="HTML")
-
-
 @router.message(F.text.regexp(r"(?i)^ставка$"))
 async def cmd_bet_show(message: types.Message):
     bet = get_bet(message.from_user.id)
@@ -206,12 +187,9 @@ async def cmd_bet_set(message: types.Message):
             f"❌ <b>Ставка больше баланса</b>\n\n"
             f"{DOLLAR} Баланс: <b>{bal:.2f}</b>",
             parse_mode="HTML")
-    ok = db.set_bet(uid, bet)
-    if ok:
+    if db.set_bet(uid, bet):
         await message.answer(f"✅ Ставка: <b>{bet}</b> {DOLLAR}",
                              reply_markup=back_menu(), parse_mode="HTML")
-    else:
-        await message.answer("❌ Не удалось установить ставку", parse_mode="HTML")
 
 
 @router.message(F.text.regexp(r"(?i)^(вб|всё|все|allin|all)$"))
@@ -354,7 +332,113 @@ async def cmd_promo_hint(message: types.Message):
 
 
 # ============================================================
-#              КУБИКИ — ПРЯМОЙ ЗАПУСК
+#         ОТКРЫТИЕ МЕНЮ И ИГР ТЕКСТОМ
+# ============================================================
+@router.message(F.text.regexp(r"(?i)^(меню|menu|м)$"))
+async def cmd_menu_text(message: types.Message):
+    uid = message.from_user.id
+    is_admin = (uid == ADMIN_ID)
+    await message.answer("📋 <b>Главное меню</b>",
+                         reply_markup=main_menu_inline(is_admin),
+                         parse_mode="HTML")
+
+
+@router.message(F.text.regexp(r"(?i)^(игры|играть|и|games|game)$"))
+async def cmd_games_text(message: types.Message):
+    uid = message.from_user.id
+    bal = db.get_balance(uid)
+    bet = db.get_bet(uid)
+    await message.answer(
+        f"{GAMES} <b>Выбирайте игру для ставки!</b>\n\n"
+        f"{DOLLAR} Баланс — <b>{bal:.2f}</b>\n"
+        f"{BET} Ставка — <b>{bet}</b>",
+        reply_markup=games_main(uid), parse_mode="HTML")
+
+
+@router.message(F.text.regexp(r"(?i)^(куб|кубик|дайс|dice)$"))
+async def open_dice_menu(message: types.Message):
+    uid = message.from_user.id
+    bet = db.get_bet(uid)
+    bal = db.get_balance(uid)
+    await message.answer(
+        f"🎲 <b>Кубики</b>\n\n{BET} Ставка: <b>{bet}</b> {DOLLAR}\n"
+        f"{WALLET} Баланс: <b>{bal:.2f}</b>\n\nВыберите режим:",
+        reply_markup=dice_menu_1(uid), parse_mode="HTML")
+
+
+@router.message(F.text.regexp(r"(?i)^(футбол|фут|football)$"))
+async def open_football_menu(message: types.Message):
+    uid = message.from_user.id
+    bet = db.get_bet(uid)
+    bal = db.get_balance(uid)
+    await message.answer(
+        f"⚽ <b>Футбол — выберите исход:</b>\n\n"
+        f"{BET} Ставка: <b>{bet}</b> {DOLLAR}\n"
+        f"{WALLET} Баланс: <b>{bal:.2f}</b>",
+        reply_markup=football_menu(uid), parse_mode="HTML")
+
+
+@router.message(F.text.regexp(r"(?i)^(баскет|баскетбол|basket|basketball)$"))
+async def open_basket_menu(message: types.Message):
+    uid = message.from_user.id
+    bet = db.get_bet(uid)
+    bal = db.get_balance(uid)
+    await message.answer(
+        f"🏀 <b>Баскетбол — выберите исход:</b>\n\n"
+        f"{BET} Ставка: <b>{bet}</b> {DOLLAR}\n"
+        f"{WALLET} Баланс: <b>{bal:.2f}</b>",
+        reply_markup=basketball_menu(uid), parse_mode="HTML")
+
+
+@router.message(F.text.regexp(r"(?i)^(дартс|darts)$"))
+async def open_darts_menu(message: types.Message):
+    uid = message.from_user.id
+    bet = db.get_bet(uid)
+    bal = db.get_balance(uid)
+    await message.answer(
+        f"🎯 <b>Дартс — выберите исход:</b>\n\n"
+        f"{BET} Ставка: <b>{bet}</b> {DOLLAR}\n"
+        f"{WALLET} Баланс: <b>{bal:.2f}</b>",
+        reply_markup=darts_menu(uid), parse_mode="HTML")
+
+
+@router.message(F.text.regexp(r"(?i)^(боулинг|bowling)$"))
+async def open_bowling_menu(message: types.Message):
+    uid = message.from_user.id
+    bet = db.get_bet(uid)
+    bal = db.get_balance(uid)
+    await message.answer(
+        f"🎳 <b>Боулинг — выберите исход:</b>\n\n"
+        f"{BET} Ставка: <b>{bet}</b> {DOLLAR}\n"
+        f"{WALLET} Баланс: <b>{bal:.2f}</b>",
+        reply_markup=bowling_menu(uid), parse_mode="HTML")
+
+
+@router.message(F.text.regexp(r"(?i)^(слоты|слот|slots)$"))
+async def open_slots_menu(message: types.Message):
+    uid = message.from_user.id
+    bet = db.get_bet(uid)
+    bal = db.get_balance(uid)
+    await message.answer(
+        f"🎰 <b>Слоты — выберите режим:</b>\n\n"
+        f"{BET} Ставка: <b>{bet}</b> {DOLLAR}\n"
+        f"{WALLET} Баланс: <b>{bal:.2f}</b>",
+        reply_markup=slots_menu(uid), parse_mode="HTML")
+
+
+@router.message(F.text.regexp(r"(?i)^(мины|мина|mines)$"))
+async def open_mines_menu(message: types.Message):
+    uid = message.from_user.id
+    bet = db.get_bet(uid)
+    bal = db.get_balance(uid)
+    await message.answer(
+        f"💣 <b>Мины</b>\n\n{BET} Ставка: <b>{bet}</b> {DOLLAR}\n"
+        f"{WALLET} Баланс: <b>{bal:.2f}</b>\n\nВыберите кол-во мин:",
+        reply_markup=mines_count_menu(uid), parse_mode="HTML")
+
+
+# ============================================================
+#              КУБИКИ — БЫСТРЫЙ ЗАПУСК
 # ============================================================
 @router.message(F.text.regexp(r"(?i)^куб\s+([1-6])$"))
 async def go_dice_num(message: types.Message):
@@ -424,29 +508,20 @@ async def go_dice_sum7(message: types.Message):
 
 
 # ============================================================
-#              СЛОТЫ
-# ============================================================
-@router.message(F.text.regexp(r"(?i)^(слоты|слот)$"))
-async def go_slots(message: types.Message):
-    from handlers.slots import play_slots_direct
-    await play_slots_direct(message, "any")
-
-
-# ============================================================
-#              СПОРТ (пара слов)
+#              СПОРТ — БЫСТРЫЙ ЗАПУСК
 # ============================================================
 SPORT_TEXT = {
     # футбол
     ("футбол", "мимо"):     ("football",   "mimo"),
     ("футбол", "штанга"):   ("football",   "shtanga"),
-    ("футбол", "центр"):    ("football",   "center"),
+    ("футбол", "застрял"):  ("football",   "zastryal"),
     ("футбол", "отштанги"): ("football",   "from_shtanga"),
-    ("футбол", "угол"):     ("football",   "corner"),
+    ("футбол", "центр"):    ("football",   "center"),
     # баскет
     ("баскет", "отскок"):   ("basketball", "otskok"),
-    ("баскет", "близко"):   ("basketball", "blizko"),
-    ("баскет", "застрял"):  ("basketball", "zastryal"),
     ("баскет", "край"):     ("basketball", "edge"),
+    ("баскет", "застрял"):  ("basketball", "zastryal"),
+    ("баскет", "близко"):   ("basketball", "blizko"),
     ("баскет", "прямое"):   ("basketball", "direct"),
     # дартс
     ("дартс", "промах"):    ("darts",      "miss"),
@@ -483,24 +558,15 @@ async def go_sport_text(message: types.Message):
 
 
 # ============================================================
-#              АРКАДЫ
+#              АРКАДЫ — БЫСТРЫЙ ЗАПУСК
 # ============================================================
-@router.message(F.text.regexp(r"(?i)^(мины|мина)$"))
-async def go_mines(message: types.Message):
-    uid = message.from_user.id
-    bet = get_bet(uid)
-    await message.answer(
-        f"💣 Ставка: <b>{bet}</b> {DOLLAR}\nВыберите кол-во мин:",
-        reply_markup=mines_count_menu(uid), parse_mode="HTML")
-
-
 @router.message(F.text.regexp(r"(?i)^(башня|tower)$"))
 async def go_tower(message: types.Message):
     uid = message.from_user.id
     bet = get_bet(uid)
     if not db.has_enough(uid, bet):
-        return await message.answer(
-            f"❌ Нужно <b>{bet}</b> {DOLLAR}", parse_mode="HTML")
+        return await message.answer(f"❌ Нужно <b>{bet}</b> {DOLLAR}",
+                                    parse_mode="HTML")
     db.update_balance(uid, -bet)
     db.add_wager(uid, bet)
     db.inc_games(uid)
@@ -514,8 +580,8 @@ async def go_crash(message: types.Message):
     uid = message.from_user.id
     bet = get_bet(uid)
     if not db.has_enough(uid, bet):
-        return await message.answer(
-            f"❌ Нужно <b>{bet}</b> {DOLLAR}", parse_mode="HTML")
+        return await message.answer(f"❌ Нужно <b>{bet}</b> {DOLLAR}",
+                                    parse_mode="HTML")
     from handlers.arcades import start_crash_direct
     await start_crash_direct(message, uid, bet)
 
@@ -525,8 +591,8 @@ async def go_keno(message: types.Message):
     uid = message.from_user.id
     bet = get_bet(uid)
     if not db.has_enough(uid, bet):
-        return await message.answer(
-            f"❌ Нужно <b>{bet}</b> {DOLLAR}", parse_mode="HTML")
+        return await message.answer(f"❌ Нужно <b>{bet}</b> {DOLLAR}",
+                                    parse_mode="HTML")
     from handlers.arcades import play_keno_direct
     await play_keno_direct(message, uid, bet)
 
@@ -536,8 +602,8 @@ async def go_roulette(message: types.Message):
     uid = message.from_user.id
     bet = get_bet(uid)
     if not db.has_enough(uid, bet):
-        return await message.answer(
-            f"❌ Нужно <b>{bet}</b> {DOLLAR}", parse_mode="HTML")
+        return await message.answer(f"❌ Нужно <b>{bet}</b> {DOLLAR}",
+                                    parse_mode="HTML")
     from handlers.arcades import play_roulette_direct
     await play_roulette_direct(message, uid, bet)
 
@@ -582,7 +648,6 @@ async def replay_game(call: types.CallbackQuery):
             mines = 5
         await _start_mines(call.message, uid, mines)
     elif game_type == "tower":
-        from handlers.arcades import open_tower, _parse_uid
         bet = db.get_bet(uid)
         if not db.has_enough(uid, bet):
             await call.answer(f"❌ Нужно {bet} 💵", show_alert=True)

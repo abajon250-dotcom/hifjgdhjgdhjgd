@@ -176,16 +176,11 @@ def dice3_choices(uid=None):   return dice_menu_3(uid)
 def football_menu(uid=None):
     u = _u(uid)
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🚫 Мимо ворот (x3.0)",
-                              callback_data=f"fc:mimo{u}"),
-         InlineKeyboardButton(text="🥅 В штангу (x4.0)",
-                              callback_data=f"fc:shtanga{u}")],
-        [InlineKeyboardButton(text="⚽ Гол в центр (x2.0)",
-                              callback_data=f"fc:center{u}"),
-         InlineKeyboardButton(text="⚽ Гол от штанги (x3.5)",
-                              callback_data=f"fc:from_shtanga{u}")],
-        [InlineKeyboardButton(text="⚽ Гол в угол (x1.8)",
-                              callback_data=f"fc:corner{u}")],
+        [InlineKeyboardButton(text="🚫 Мимо ворот (x5.5)", callback_data=f"fc:mimo{u}"),
+         InlineKeyboardButton(text="🥅 В штангу (x5.5)", callback_data=f"fc:shtanga{u}")],
+        [InlineKeyboardButton(text="🧱 Застрял мяч (x5.5)", callback_data=f"fc:zastryal{u}"),
+         InlineKeyboardButton(text="⚽ Гол от штанги (x5.5)", callback_data=f"fc:from_shtanga{u}")],
+        [InlineKeyboardButton(text="⚽ Чистый гол в центр (x5.5)", callback_data=f"fc:center{u}")],
         [InlineKeyboardButton(text="Назад", callback_data=f"games_main{u}",
                               style="danger")]])
 
@@ -196,16 +191,11 @@ def football_menu(uid=None):
 def basketball_menu(uid=None):
     u = _u(uid)
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🏀 Отскок (x3.0)",
-                              callback_data=f"bc:otskok{u}"),
-         InlineKeyboardButton(text="🏀 Близко (x4.0)",
-                              callback_data=f"bc:blizko{u}")],
-        [InlineKeyboardButton(text="🏀 Застрял (x5.0)",
-                              callback_data=f"bc:zastryal{u}"),
-         InlineKeyboardButton(text="🏀 С краем (x2.0)",
-                              callback_data=f"bc:edge{u}")],
-        [InlineKeyboardButton(text="🏀 Прямое (x1.5)",
-                              callback_data=f"bc:direct{u}")],
+        [InlineKeyboardButton(text="🏀 Отскок (x5.5)", callback_data=f"bc:otskok{u}"),
+         InlineKeyboardButton(text="🏀 С краем (x5.5)", callback_data=f"bc:edge{u}")],
+        [InlineKeyboardButton(text="🏀 Застрял (x5.5)", callback_data=f"bc:zastryal{u}"),
+         InlineKeyboardButton(text="🏀 Близко (x5.5)", callback_data=f"bc:blizko{u}")],
+        [InlineKeyboardButton(text="🏀 Прямое попадание (x5.5)", callback_data=f"bc:direct{u}")],
         [InlineKeyboardButton(text="Назад", callback_data=f"games_main{u}",
                               style="danger")]])
 
@@ -216,12 +206,12 @@ def basketball_menu(uid=None):
 def darts_menu(uid=None):
     u = _u(uid)
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🎯 Промах (x3.0)", callback_data=f"dc:miss{u}"),
-         InlineKeyboardButton(text="🎯 В центр (x5.0)", callback_data=f"dc:bull{u}")],
-        [InlineKeyboardButton(text="🎯 Сектор 1 (x2.5)", callback_data=f"dc:s1{u}"),
-         InlineKeyboardButton(text="🎯 Сектор 2 (x2.5)", callback_data=f"dc:s2{u}")],
-        [InlineKeyboardButton(text="🎯 Сектор 3 (x2.5)", callback_data=f"dc:s3{u}"),
-         InlineKeyboardButton(text="🎯 Сектор 4 (x2.5)", callback_data=f"dc:s4{u}")],
+        [InlineKeyboardButton(text="🎯 Промах (x5.5)", callback_data=f"dc:miss{u}"),
+         InlineKeyboardButton(text="🎯 В центр (x5.5)", callback_data=f"dc:bull{u}")],
+        [InlineKeyboardButton(text="🎯 Сектор 1 (x5.5)", callback_data=f"dc:s1{u}"),
+         InlineKeyboardButton(text="🎯 Сектор 2 (x5.5)", callback_data=f"dc:s2{u}")],
+        [InlineKeyboardButton(text="🎯 Сектор 3 (x5.5)", callback_data=f"dc:s3{u}"),
+         InlineKeyboardButton(text="🎯 Сектор 4 (x5.5)", callback_data=f"dc:s4{u}")],
         [InlineKeyboardButton(text="Назад", callback_data=f"games_main{u}",
                               style="danger")]])
 
@@ -232,12 +222,12 @@ def darts_menu(uid=None):
 def bowling_menu(uid=None):
     u = _u(uid)
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🎳 Промах (x3.5)", callback_data=f"wc:miss{u}"),
-         InlineKeyboardButton(text="🎳 Сбито 1/6 (x4.0)", callback_data=f"wc:p1{u}")],
-        [InlineKeyboardButton(text="🎳 Сбито 3/6 (x3.0)", callback_data=f"wc:p3{u}"),
-         InlineKeyboardButton(text="🎳 Сбито 4/6 (x2.5)", callback_data=f"wc:p4{u}")],
-        [InlineKeyboardButton(text="🎳 Сбито 5/6 (x2.0)", callback_data=f"wc:p5{u}"),
-         InlineKeyboardButton(text="🎳 Страйк! (x1.5)", callback_data=f"wc:strike{u}")],
+        [InlineKeyboardButton(text="🎳 Промах (x5.5)", callback_data=f"wc:miss{u}"),
+         InlineKeyboardButton(text="🎳 Сбито 1/6 (x5.5)", callback_data=f"wc:p1{u}")],
+        [InlineKeyboardButton(text="🎳 Сбито 3/6 (x5.5)", callback_data=f"wc:p3{u}"),
+         InlineKeyboardButton(text="🎳 Сбито 4/6 (x5.5)", callback_data=f"wc:p4{u}")],
+        [InlineKeyboardButton(text="🎳 Сбито 5/6 (x5.5)", callback_data=f"wc:p5{u}"),
+         InlineKeyboardButton(text="🎳 Страйк (x5.5)", callback_data=f"wc:strike{u}")],
         [InlineKeyboardButton(text="Назад", callback_data=f"games_main{u}",
                               style="danger")]])
 
@@ -259,7 +249,7 @@ def slots_menu(uid=None):
 
 
 # ============================================================
-#                    МИНЫ — выбор кол-ва
+#                    МИНЫ
 # ============================================================
 def mines_count_menu(uid=None):
     u = _u(uid)
@@ -347,3 +337,29 @@ def back_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Назад", callback_data="back_to_main",
                               style="primary")]])
+
+
+def currency_menu():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Играть долларами", callback_data="cur:usd",
+                              icon_custom_emoji_id="5197434882321567830",
+                              style="success")],
+        [InlineKeyboardButton(text="Отмена", callback_data="games_main",
+                              style="danger")]])
+
+
+def quick_bet_menu(currency: str = "usd"):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="0.5", callback_data="qb:0.5"),
+         InlineKeyboardButton(text="1", callback_data="qb:1"),
+         InlineKeyboardButton(text="5", callback_data="qb:5")],
+        [InlineKeyboardButton(text="10", callback_data="qb:10"),
+         InlineKeyboardButton(text="50", callback_data="qb:50")],
+        [InlineKeyboardButton(text="Своя ставка", callback_data="qb:custom",
+                              style="success")],
+        [InlineKeyboardButton(text="Отмена", callback_data="games_main",
+                              style="danger")]])
+
+
+def bet_currency_menu(): return currency_menu()
+def bet_menu():          return quick_bet_menu()
