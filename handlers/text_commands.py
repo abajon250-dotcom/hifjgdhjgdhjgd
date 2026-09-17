@@ -89,20 +89,18 @@ async def cmd_wager(message: types.Message):
 @router.message(F.text.regexp(r"(?i)^/reserve$"))
 async def cmd_reserve(message: types.Message):
     from utils.treasury import get_full_treasury
+    from utils.emoji import CRYPTOBOT, XROCKET, STAR
     try:
         t = await get_full_treasury()
     except Exception as e:
         return await message.answer(f"❌ {e}")
 
     lines = ["💼 <b>Балансы казино</b>\n"]
-    lines.append(f"💎 CryptoBot: <b>{t['crypto'].get('USDT', 0):.2f}</b> USDT")
-    lines.append(f"🚀 xRocket: <b>{t['xrocket'].get('USDT', 0):.2f}</b> USDT")
-    lines.append(f"⭐ Stars: <b>{t['stars_manual']:.2f}</b>")
+    lines.append(f"{CRYPTOBOT} CryptoBot: <b>{t['crypto_total']:.2f}</b> USDT")
+    lines.append(f"{XROCKET} xRocket: <b>{t['xrocket_total']:.2f}</b> USDT")
+    lines.append(f"{STAR} Stars: <b>{t['stars_manual']:.2f}</b>")
     lines.append(f"🔥 Hot: <b>{t['hot_manual']:.2f}</b>")
     lines.append(f"❄️ Cold: <b>{t['cold_manual']:.2f}</b>")
-    lines.append(f"\n💰 <b>Всего:</b> <b>{t['total_usdt']:.2f}</b> USDT")
-    lines.append(f"👥 Обязательства: <b>{t['users_balance']:.2f}</b>")
-    lines.append(f"{'🟢' if t['reserve'] >= 0 else '🔴'} <b>Резерв:</b> <b>{t['reserve']:.2f}</b>")
     await message.answer("\n".join(lines), parse_mode="HTML")
 
 

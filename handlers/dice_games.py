@@ -191,6 +191,9 @@ async def _finish(call, uid, game_key, value, bet, win, result, mult):
         db.add_game(uid, game_key, bet, win, mult, "win")
         new_bal = db.get_balance(uid)
 
+        from utils.refs import give_ref_bonus
+        give_ref_bonus(uid, win)
+
         await call.message.reply(
             f"🔼 {mention} выигрывает <b>{win - bet:.2f}</b> {DOLLAR}\n\n"
             f"<blockquote>🎲 Выпало: <b>{value}</b>\n"

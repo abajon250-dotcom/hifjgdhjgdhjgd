@@ -88,6 +88,10 @@ async def slots_play(call: types.CallbackQuery):
         db.update_balance(uid, win)
         db.add_win(uid, win)
         db.add_game(uid, "slots", bet, win, mult, "win")
+
+        from utils.refs import give_ref_bonus
+        give_ref_bonus(uid, win)
+
         await call.message.reply(
             f"🔼 {mention} выигрывает <b>{win - bet:.2f}</b> {DOLLAR}\n\n"
             f"<blockquote>🎰 Выпало: {reels_str}\n"

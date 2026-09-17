@@ -66,7 +66,7 @@ def _wallet_text(uid):
 
 
 # ============================================================
-#              /start + промокод через ссылку
+#              /start — реф + промокод через ссылку
 # ============================================================
 @router.message(Command("start"), PVT)
 async def cmd_start(message: types.Message):
@@ -74,19 +74,25 @@ async def cmd_start(message: types.Message):
     if db.is_banned(uid):
         return await message.answer("🚫 Вы забанены.")
 
-    # Сначала обрабатываем payload (промокод / реф)
+    # Парсим payload ДО подписки
     args = message.text.split()
     if len(args) > 1:
         payload = args[1]
+        print(f"[start] uid={uid} payload={payload}")
 
         # ---------- РЕФЕРАЛКА ----------
         if payload.startswith("ref"):
             try:
-                db.set_referrer(uid, int(payload.replace("ref", "")))
-            except Exception:
-                pass
+                ref_id = int(payload.replace("ref", ""))
+                ok = db.set_referrer(uid, ref_id)
+                if ok:
+                    await message.answer(
+                        "🤝 <b>Вы пришли по реферальной ссылке!</b>",
+                        parse_mode="HTML")
+            except Exception as e:
+                print(f"[start] ref error: {e}")
 
-        # ---------- ПРОМОКОД ЧЕРЕЗ ССЫЛКУ ----------
+        # ---------- ПРОМОКОД ----------
         elif payload.startswith("promo_") or payload.startswith("p_"):
             code = payload.split("_", 1)[1].strip().upper()
             info = db.get_promo_info(code)
@@ -113,15 +119,15 @@ async def cmd_start(message: types.Message):
                 await message.answer(
                     f"🎁 <b>Промокод найден!</b>\n\n"
                     f"💰 Сумма: <b>{info['amount']:.2f}</b> USDT\n"
-                    f"{wager_line}"
-                    f"\n<b>Условия:</b>\n"
+                    f"{wager_line}\n"
+                    f"<b>Условия:</b>\n"
                     f"• Подписка на все каналы\n"
                     + (f"• Оборот от <b>{info['required_wager']:.0f}</b> USDT\n"
                        if info["required_wager"] > 0 else "")
                     + f"\nНажми кнопку ниже 👇",
                     reply_markup=kb, parse_mode="HTML")
 
-    # Потом проверка подписки
+    # Проверка подписки
     not_sub = await check_subscription(message.bot, uid)
     if not_sub and uid != ADMIN_ID:
         return await message.answer(subscribe_text(),
@@ -129,7 +135,7 @@ async def cmd_start(message: types.Message):
                                     parse_mode="HTML")
 
     db.get_user(uid)
-    db.set_username(uid, message.from_user.username or "Игрок")
+    db.set_username(uid, message.from_user.username or message.from_user.full_name)
     is_admin = (uid == ADMIN_ID)
 
     await message.answer(f"🎰 <b>{CASINO_NAME}</b>",
@@ -409,13 +415,16 @@ async def bonuses_handler(call: types.CallbackQuery):
 async def referrals_handler(call: types.CallbackQuery):
     uid = call.from_user.id
     invited = db.get_stats(uid)["invited_count"]
+    earned = db.get_ref_balance(uid)
     bot_info = await call.bot.get_me()
     link = f"https://t.me/{bot_info.username}?start=ref{uid}"
-    text = (f"{REF} <b>Реферальная программа</b>\n\n"
-            f"{LINK} <code>{link}</code>\n\n"
-            f"👤 Приглашено: <b>{invited}</b>\n"
-            f"{DOLLAR} С рефов: <b>{db.get_ref_balance(uid):.2f}</b>\n\n"
-            f"💎 <b>10%</b> от оборота каждого реферала идёт вам на баланс!")
+    text = (
+        f"{REF} <b>Реферальная программа</b>\n\n"
+        f"{LINK} <code>{link}</code>\n\n"
+        f"👤 Приглашено: <b>{invited}</b>\n"
+        f"{DOLLAR} Заработано: <b>{earned:.2f}</b>\n\n"
+        f"💎 <b>3%</b> от каждого выигрыша реферала — вам на баланс!"
+    )
     await safe_edit(call.message, text, reply_markup=referrals_menu(),
                     parse_mode="HTML")
     await call.answer()
@@ -437,7 +446,7 @@ async def ref_top(call: types.CallbackQuery):
     medals = ["🥇", "🥈", "🥉"]
     for i, (uid, uname, wag) in enumerate(top, 1):
         medal = medals[i - 1] if i <= 3 else f"{i}."
-        name = uname or f"id{uid}"
+        name = uname if uname else f"Юзер {uid}"
         text += (f"{medal} <a href='tg://user?id={uid}'>{name}</a> — "
                  f"<b>{wag:.2f}</b> {DOLLAR}\n")
     await safe_edit(call.message, text, reply_markup=referrals_menu(),

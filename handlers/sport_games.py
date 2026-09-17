@@ -23,9 +23,6 @@ async def _not_owner(call: types.CallbackQuery):
     await call.answer("❌ Это не твоя игра!", show_alert=True)
 
 
-# ============================================================
-#              ОТКРЫТИЕ МЕНЮ
-# ============================================================
 @router.callback_query(F.data == "game:football")
 async def menu_football(call: types.CallbackQuery):
     from keyboards.inline import football_menu
@@ -58,9 +55,6 @@ async def menu_bowling(call: types.CallbackQuery):
     await call.answer()
 
 
-# ============================================================
-#              ЗАПУСК
-# ============================================================
 @router.callback_query(F.data.startswith("fc:"))
 async def play_football(call: types.CallbackQuery):
     parts = call.data.split(":")
@@ -136,6 +130,10 @@ async def _play(call, uid, game, emoji, choice, calc_fn):
         db.update_balance(uid, win)
         db.add_win(uid, win)
         db.add_game(uid, f"sport_{game}", bet, win, mult, "win")
+
+        from utils.refs import give_ref_bonus
+        give_ref_bonus(uid, win)
+
         await call.message.reply(
             f"🔼 {mention} выигрывает <b>{win - bet:.2f}</b> {DOLLAR}\n\n"
             f"<blockquote>{emoji} Выпало: <b>{v}</b>\n"

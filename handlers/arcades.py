@@ -26,9 +26,6 @@ async def _no(call):
     await call.answer("❌ Это не твоя игра!", show_alert=True)
 
 
-# ============================================================
-#                    ОТКРЫТИЕ
-# ============================================================
 @router.callback_query(F.data == "game:arcades")
 async def arcades_open(call: types.CallbackQuery):
     from keyboards.inline import arcades_menu
@@ -176,6 +173,10 @@ async def mines_cash(call: types.CallbackQuery):
     db.update_balance(uid, win)
     db.add_win(uid, win)
     db.add_game(uid, "mines", bet, win, mult, "win")
+
+    from utils.refs import give_ref_bonus
+    give_ref_bonus(uid, win)
+
     db.delete_active_game(uid)
     await call.message.edit_text(
         f"💰 <b>Забрали!</b>\nМножитель: <b>{mult:.2f}x</b>\n"
@@ -272,6 +273,10 @@ async def tower_cash(call: types.CallbackQuery):
     db.update_balance(uid, win)
     db.add_win(uid, win)
     db.add_game(uid, "tower", bet, win, mult, "win")
+
+    from utils.refs import give_ref_bonus
+    give_ref_bonus(uid, win)
+
     db.delete_active_game(uid)
     await call.message.edit_text(
         f"💰 <b>Забрали!</b>\nУровень: {level} | x{mult:.2f}\n"
@@ -362,6 +367,10 @@ async def crash_cash(call: types.CallbackQuery):
     db.update_balance(uid, win)
     db.add_win(uid, win)
     db.add_game(uid, "crash", bet, win, current, "win")
+
+    from utils.refs import give_ref_bonus
+    give_ref_bonus(uid, win)
+
     db.delete_active_game(uid)
     await call.message.edit_text(
         f"💰 <b>Забрали на {current:.2f}x!</b>\n"
@@ -392,6 +401,10 @@ async def keno_start(call: types.CallbackQuery):
         db.update_balance(uid, win)
         db.add_win(uid, win)
         db.add_game(uid, "keno", bet, win, mult, "win")
+
+        from utils.refs import give_ref_bonus
+        give_ref_bonus(uid, win)
+
         await call.message.edit_text(
             f"🎯 <b>Кено</b>\nУгадано: <b>{hits}</b>/5\n"
             f"✅ x{mult:.2f} → <b>+{win:.2f}</b> {DOLLAR}\n"
@@ -437,6 +450,10 @@ async def roulette_start(call: types.CallbackQuery):
         db.update_balance(uid, win)
         db.add_win(uid, win)
         db.add_game(uid, "roulette", bet, win, 2.0, "win")
+
+        from utils.refs import give_ref_bonus
+        give_ref_bonus(uid, win)
+
         await call.message.edit_text(
             f"🎡 <b>Рулетка</b>\nВыпало {ci} <b>{n}</b>\n"
             f"✅ +{win:.2f} {DOLLAR}\n"

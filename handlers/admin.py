@@ -7,7 +7,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from database import db
-from utils.emoji import DOLLAR, PERCENT, WALLET, BONUS, PROFILE, TURNOVER, DICE
+from utils.emoji import (DOLLAR, PERCENT, WALLET, BONUS, PROFILE,
+                          TURNOVER, DICE, CRYPTOBOT, XROCKET, STAR)
 
 router = Router()
 ADMIN_ID = int(os.getenv("ADMIN_ID", 0))
@@ -51,7 +52,10 @@ async def build_admin_text() -> str:
 
     top_text = ""
     for i, (uid, t) in enumerate(top, 1):
-        top_text += f"{i}. <code>{uid}</code> — {t:.2f}\n"
+        row = db.cursor.execute("SELECT username FROM users WHERE user_id=?",
+                                (uid,)).fetchone()
+        name = row[0] if row and row[0] else f"Юзер {uid}"
+        top_text += f"{i}. <a href='tg://user?id={uid}'>{name}</a> — {t:.2f}\n"
     if not top_text:
         top_text = "—\n"
 
@@ -135,7 +139,7 @@ async def admin_treasury(call: types.CallbackQuery):
     crypto_api = t["crypto"].get("USDT", 0)
     crypto_man = t["crypto_manual"]
     crypto_total = t["crypto_total"]
-    lines.append(f"💎 <b>CryptoBot:</b>")
+    lines.append(f"{CRYPTOBOT} <b>CryptoBot:</b>")
     lines.append(f"  • API: <b>{crypto_api:.2f}</b>")
     lines.append(f"  • Ручной: <b>{crypto_man:.2f}</b>")
     lines.append(f"  • Всего: <b>{crypto_total:.2f}</b>")
@@ -148,20 +152,15 @@ async def admin_treasury(call: types.CallbackQuery):
     xr_api = t["xrocket"].get("USDT", 0)
     xr_man = t["xrocket_manual"]
     xr_total = t["xrocket_total"]
-    lines.append(f"\n🚀 <b>xRocket:</b>")
+    lines.append(f"\n{XROCKET} <b>xRocket:</b>")
     lines.append(f"  • API: <b>{xr_api:.2f}</b>")
     lines.append(f"  • Ручной: <b>{xr_man:.2f}</b>")
     lines.append(f"  • Всего: <b>{xr_total:.2f}</b>")
 
     # Остальное
-    lines.append(f"\n⭐ <b>Stars:</b> <b>{t['stars_manual']:.2f}</b>")
+    lines.append(f"\n{STAR} <b>Stars:</b> <b>{t['stars_manual']:.2f}</b>")
     lines.append(f"🔥 <b>Hot Wallet:</b> <b>{t['hot_manual']:.2f}</b>")
     lines.append(f"❄️ <b>Cold Wallet:</b> <b>{t['cold_manual']:.2f}</b>")
-
-    lines.append(f"\n📊 <b>Всего USDT:</b> <b>{t['total_usdt']:.2f}</b>")
-    lines.append(f"👥 Обязательства: <b>{t['users_balance']:.2f}</b>")
-    res = t["reserve"]
-    lines.append(f"{'🟢' if res >= 0 else '🔴'} <b>Резерв:</b> <b>{res:.2f}</b>")
 
     text = "\n".join(lines)
 
@@ -208,11 +207,14 @@ async def treasury_adjust(call: types.CallbackQuery):
     delta = float(delta_str)
     db.add_treasury_field(field, delta)
 
-    names = {"crypto": "💎 CryptoBot", "xrocket": "🚀 xRocket",
-             "stars": "⭐ Stars", "hot": "🔥 Hot", "cold": "❄️ Cold"}
+    names = {"crypto": f"{CRYPTOBOT} в CryptoBot",
+             "xrocket": f"{XROCKET} в xRocket",
+             "stars": f"{STAR} в Stars",
+             "hot": "🔥 в Hot",
+             "cold": "❄️ в Cold"}
     name = names.get(field, field)
     sign = "+" if delta > 0 else ""
-    await call.answer(f"{name}: {sign}{delta:g} USDT", show_alert=False)
+    await call.answer(f"{name}: {sign}{delta:g} USDT", show_alert=True)
 
     class FakeCall:
         from_user = call.from_user
@@ -521,7 +523,8 @@ async def admin_users(call: types.CallbackQuery):
 
     text = "👥 <b>ТОП-15 по обороту:</b>\n\n"
     for i, (uid, uname, bal, wag) in enumerate(users, 1):
-        text += (f"{i}. <code>{uid}</code> @{uname or '—'}\n"
+        name = uname if uname else f"Юзер {uid}"
+        text += (f"{i}. <a href='tg://user?id={uid}'>{name}</a>\n"
                  f"   💵 {bal:.2f} | 📉 {wag:.2f}\n")
 
     kb = InlineKeyboardMarkup(inline_keyboard=[

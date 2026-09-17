@@ -84,11 +84,9 @@ class Database:
         self.cursor.execute(
             "INSERT OR IGNORE INTO treasury "
             "(id, crypto_manual, xrocket_manual, stars_manual, hot_manual, cold_manual) "
-            "VALUES (1, 0.0, 0.0, 0.0, 0.0, 0.0)"
-        )
+            "VALUES (1, 0.0, 0.0, 0.0, 0.0, 0.0)")
         self.conn.commit()
 
-        # Автомиграции
         migrations = [
             ("username", "TEXT"), ("stars_balance", "REAL DEFAULT 0.0"),
             ("bonus_balance", "REAL DEFAULT 0.0"), ("bet", "REAL DEFAULT 0.5"),
@@ -104,6 +102,11 @@ class Database:
 
         self._add_promo_column("required_wager", "REAL DEFAULT 0.0")
         self._ensure_treasury_cols()
+
+        # Убираем саморефералов
+        self.cursor.execute(
+            "UPDATE users SET referrer_id = NULL WHERE referrer_id = user_id")
+        self.conn.commit()
 
     def _add_column_if_not_exists(self, name, typ):
         self.cursor.execute("PRAGMA table_info(users)")
@@ -387,23 +390,44 @@ class Database:
 
     # ============ REFERRALS ============
     def set_referrer(self, uid, ref_id):
+        if uid == ref_id:
+            return False
         self.get_user(uid)
         self.cursor.execute("SELECT referrer_id FROM users WHERE user_id=?", (uid,))
         r = self.cursor.fetchone()
-        if r and r[0] is None and uid != ref_id:
-            self.cursor.execute("UPDATE users SET referrer_id=? WHERE user_id=?",
-                                (ref_id, uid))
-            self.cursor.execute("UPDATE users SET invited_count=invited_count+1 "
-                                "WHERE user_id=?", (ref_id,))
+        if r and r[0] is None:
+            self.cursor.execute(
+                "UPDATE users SET referrer_id=? WHERE user_id=?", (ref_id, uid))
+            self.cursor.execute(
+                "UPDATE users SET invited_count=invited_count+1 WHERE user_id=?",
+                (ref_id,))
             self.conn.commit()
             return True
         return False
+
+    def get_referrer(self, uid):
+        self.get_user(uid)
+        self.cursor.execute("SELECT referrer_id FROM users WHERE user_id=?", (uid,))
+        r = self.cursor.fetchone()
+        return r[0] if r and r[0] else None
+
+    def get_all_referrals(self, uid):
+        self.cursor.execute(
+            "SELECT user_id, username FROM users WHERE referrer_id=?", (uid,))
+        return self.cursor.fetchall()
 
     def get_ref_balance(self, uid):
         self.get_user(uid)
         self.cursor.execute("SELECT earned_ref FROM users WHERE user_id=?", (uid,))
         r = self.cursor.fetchone()
         return r[0] if r else 0.0
+
+    def add_ref_earnings(self, ref_id, amount):
+        self.get_user(ref_id)
+        self.cursor.execute(
+            "UPDATE users SET earned_ref=earned_ref+?, balance=balance+? WHERE user_id=?",
+            (amount, amount, ref_id))
+        self.conn.commit()
 
     # ============ ACTIVE GAMES ============
     def set_active_game(self, uid, gt, state, bet, mult, data=""):
