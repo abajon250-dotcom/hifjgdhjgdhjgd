@@ -465,7 +465,10 @@ async def cmd_bowling(message: types.Message):
 # ============================================================
 #              СТАВКА ЧИСЛОМ: 24 или 24$
 # ============================================================
-@router.message(F.text.regexp(r"^\s*\d+(?:[.,]\d+)?\s*\$?\s*$"))
+# ============================================================
+#              СТАВКА ЧИСЛОМ ТОЛЬКО С $: 24$ или 0.5$
+# ============================================================
+@router.message(F.text.regexp(r"^\s*\d+(?:[.,]\d+)?\s*\$\s*$"))
 async def cmd_bet_short(message: types.Message):
     uid = message.from_user.id
     t = (message.text or "").strip().replace("$", "").replace(",", ".").strip()
