@@ -53,8 +53,7 @@ async def cmd_profile(message: types.Message):
         [InlineKeyboardButton(text="📊 Статистика", callback_data="stats",
                               style="primary")],
         [InlineKeyboardButton(text="Назад", callback_data="back_to_main",
-                              style="danger")],
-    ])
+                              style="danger")]])
     await message.answer(
         f"{PROFILE} <b>Профиль</b>\n\n"
         f"{DOLLAR} Баланс: <b>{s['balance']:.2f}</b>\n"
@@ -62,7 +61,7 @@ async def cmd_profile(message: types.Message):
         f"({vip['current'][1]} → {next_name})\n"
         f"{DICE} Игр: <b>{s['games_played']}</b>\n"
         f"{REF} Приглашено: <b>{s['invited_count']}</b>\n\n"
-        f"<b>Промокод</b> — активируй бонус: <code>промо КОД</code>",
+        f"<b>Промокод</b> — активируй: <code>промо КОД</code>",
         reply_markup=kb, parse_mode="HTML")
 
 
@@ -84,8 +83,7 @@ async def cmd_wager(message: types.Message):
         f"{sign} <b>Профит:</b> {profit:+.2f}\n\n"
         f"{DICE} <b>Игр:</b> {s['games']}\n"
         f"{TIME} <b>Дней:</b> {s['days']}\n"
-        f"{REF} <b>Рефералов:</b> {s['invited']}"
-    )
+        f"{REF} <b>Рефералов:</b> {s['invited']}")
     await message.answer(text, reply_markup=back_menu(), parse_mode="HTML")
 
 
@@ -97,7 +95,6 @@ async def cmd_reserve(message: types.Message):
         t = await get_full_treasury()
     except Exception as e:
         return await message.answer(f"❌ {e}")
-
     lines = ["💼 <b>Балансы казино</b>\n"]
     lines.append(f"{CRYPTOBOT} CryptoBot: <b>{t['crypto_total']:.2f}</b> USDT")
     lines.append(f"{XROCKET} xRocket: <b>{t['xrocket_total']:.2f}</b> USDT")
@@ -129,16 +126,25 @@ async def cmd_help(message: types.Message):
         f"• <code>куб чет</code> / <code>куб нечет</code>\n"
         f"• <code>куб больше</code> / <code>куб меньше</code>\n"
         f"• <code>куб число 5</code>\n"
-        f"• <code>куб нет 6</code> — не выпадет 6\n"
+        f"• <code>куб нет 6</code>\n"
         f"• <code>куб 7-</code> / <code>куб 7+</code> / <code>куб 7</code>\n\n"
         f"⚽ <b>Спорт (пиши пару слов):</b>\n"
-        f"• <code>футбол гол</code> / <code>футбол мимо</code> / <code>футбол штанга</code>\n"
-        f"• <code>баскет гол</code> / <code>баскет отскок</code> / <code>баскет красный</code> / <code>баскет белый</code>\n"
-        f"• <code>дартс центр</code> / <code>дартс промах</code> / <code>дартс штанга</code>\n"
-        f"• <code>боулинг страйк</code> / <code>боулинг промах</code>\n\n"
+        f"• <code>футбол мимо</code> / <code>футбол штанга</code> / <code>футбол центр</code>\n"
+        f"• <code>футбол отштанги</code> / <code>футбол угол</code>\n"
+        f"• <code>баскет отскок</code> / <code>баскет близко</code> / <code>баскет застрял</code>\n"
+        f"• <code>баскет край</code> / <code>баскет прямое</code>\n"
+        f"• <code>дартс промах</code> / <code>дартс центр</code>\n"
+        f"• <code>дартс с1</code> / <code>дартс с2</code> / <code>дартс с3</code> / <code>дартс с4</code>\n"
+        f"• <code>боулинг промах</code> / <code>боулинг 1</code> / <code>боулинг 3</code>\n"
+        f"• <code>боулинг 4</code> / <code>боулинг 5</code> / <code>боулинг страйк</code>\n\n"
         f"🎮 <b>Остальные:</b>\n"
         f"• <code>слоты</code> / <code>мины</code> / <code>башня</code>\n"
-        f"• <code>краш</code> / <code>кено</code> / <code>рулетка</code>",
+        f"• <code>краш</code> / <code>кено</code> / <code>рулетка</code>\n\n"
+        f"💸 <b>Соц:</b>\n"
+        f"• <code>перевод 5 @юзер</code>\n"
+        f"• <code>создатьпромо 1 10</code> — промо 1$ × 10\n"
+        f"• <code>чек 25</code> — чек на 25$\n"
+        f"• <code>мойчат ССЫЛКА</code>",
         reply_markup=back_menu(), parse_mode="HTML")
 
 
@@ -157,8 +163,7 @@ async def cmd_balance(message: types.Message):
                               icon_custom_emoji_id="5443127283898405358",
                               style="danger")],
         [InlineKeyboardButton(text="Назад", callback_data="back_to_main",
-                              style="danger")],
-    ])
+                              style="danger")]])
     await message.answer(
         f"{WALLET} <b>Кошелёк</b>\n\n"
         f"{DOLLAR} Баланс: <b>{bal:.2f}</b>\n"
@@ -223,7 +228,7 @@ async def cmd_allin(message: types.Message):
 
 
 # ============================================================
-#              СТАВКА ЧИСЛОМ ТОЛЬКО С $ (тихо, без подтверждения)
+#              СТАВКА ЧИСЛОМ ТОЛЬКО С $
 # ============================================================
 @router.message(F.text.regexp(r"^\s*\d+(?:[.,]\d+)?\s*\$\s*$"))
 async def cmd_bet_short(message: types.Message):
@@ -307,36 +312,38 @@ async def cmd_wd_menu(message: types.Message):
 async def cmd_promo(message: types.Message):
     m = re.search(r"промо\s+(\S+)", message.text, re.IGNORECASE)
     code = m.group(1).strip().upper()
-    uid = message.from_user.id
+    uinfo = db.get_user_promo(code)
+    info = db.get_promo_info(code) if not uinfo else None
 
-    info = db.get_promo_info(code)
+    if uinfo:
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🎁 Активировать",
+                                  callback_data=f"uactivate_promo:{code}",
+                                  style="success")]])
+        return await message.answer(
+            f"🎁 <b>Промокод найден!</b>\n\n"
+            f"💰 Сумма: <b>{uinfo['amount']:.2f}</b> USDT\n"
+            f"👥 Осталось: <b>{uinfo['uses_left']}</b>",
+            reply_markup=kb, parse_mode="HTML")
     if not info:
-        return await message.answer(
-            "❌ <b>Промокод не найден</b>",
-            reply_markup=back_menu(), parse_mode="HTML")
+        return await message.answer("❌ <b>Промокод не найден</b>",
+                                    reply_markup=back_menu(), parse_mode="HTML")
     if info["uses_left"] <= 0:
-        return await message.answer(
-            "❌ <b>Промокод закончился</b>",
-            reply_markup=back_menu(), parse_mode="HTML")
-
+        return await message.answer("❌ <b>Промокод закончился</b>",
+                                    reply_markup=back_menu(), parse_mode="HTML")
     wager_line = ""
     if info["required_wager"] > 0:
-        wager_line = (f"📊 Требуется оборот: "
-                      f"<b>{info['required_wager']:.2f}</b> USDT\n")
-
+        wager_line = f"📊 Требуется оборот: <b>{info['required_wager']:.2f}</b> USDT\n"
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(
-            text="🎁 Активировать промокод",
-            callback_data=f"activate_promo:{code}",
-            style="success")],
+        [InlineKeyboardButton(text="🎁 Активировать",
+                              callback_data=f"activate_promo:{code}",
+                              style="success")],
         [InlineKeyboardButton(text="Назад", callback_data="back_to_main",
-                              style="danger")],
-    ])
+                              style="danger")]])
     await message.answer(
         f"🎁 <b>Промокод найден!</b>\n\n"
         f"💰 Сумма: <b>{info['amount']:.2f}</b> USDT\n"
-        f"{wager_line}\n"
-        f"Нажми кнопку ниже 👇",
+        f"{wager_line}\nНажми кнопку ниже 👇",
         reply_markup=kb, parse_mode="HTML")
 
 
@@ -394,9 +401,8 @@ async def go_dice_no_num(message: types.Message):
     if n == 6:
         await play_dice_direct(message, 1, "no_6")
     else:
-        await message.answer(
-            f"❌ Пока доступно только <code>куб нет 6</code>",
-            parse_mode="HTML")
+        await message.answer("❌ Пока доступно только <code>куб нет 6</code>",
+                             parse_mode="HTML")
 
 
 @router.message(F.text.regexp(r"(?i)^куб\s*7-$"))

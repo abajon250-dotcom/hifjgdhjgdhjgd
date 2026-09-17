@@ -82,10 +82,12 @@ async def main():
     dp.message.middleware(sub_mw)
     dp.callback_query.middleware(sub_mw)
 
+    # ВАЖНО: text_router ИДЁТ ВТОРЫМ (после start), чтобы словесные команды
+    # ловились ДО игровых роутеров.
     dp.include_router(start_router)
-    dp.include_router(text_router)
+    dp.include_router(text_router)         # ← словесные команды
     dp.include_router(social_router)
-    dp.include_router(games_router)
+    dp.include_router(games_router)        # ← меню игр
     dp.include_router(payments_router)
     dp.include_router(wallet_router)
     dp.include_router(dice_router)
