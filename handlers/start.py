@@ -452,3 +452,24 @@ async def ref_top(call: types.CallbackQuery):
     await safe_edit(call.message, text, reply_markup=referrals_menu(),
                     parse_mode="HTML")
     await call.answer()
+
+# ============================================================
+#              ВЫВОД РЕФ-БАЛАНСА
+# ============================================================
+@router.callback_query(F.data == "ref:withdraw")
+async def ref_withdraw(call: types.CallbackQuery):
+    uid = call.from_user.id
+    amount = db.withdraw_ref_to_balance(uid)
+    if amount <= 0:
+        return await call.answer("❌ У тебя нет реферального баланса!",
+                                 show_alert=True)
+    new_bal = db.get_balance(uid)
+    await call.answer(f"✅ Переведено {amount:.2f} USDT!", show_alert=True)
+    try:
+        await call.message.edit_text(
+            f"✅ <b>Реферальный баланс переведён!</b>\n\n"
+            f"💰 Переведено: <b>+{amount:.2f}</b> USDT\n"
+            f"💼 Текущий баланс: <b>{new_bal:.2f}</b> USDT",
+            parse_mode="HTML")
+    except Exception:
+        pass

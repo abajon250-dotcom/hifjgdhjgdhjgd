@@ -103,7 +103,6 @@ class Database:
         self._add_promo_column("required_wager", "REAL DEFAULT 0.0")
         self._ensure_treasury_cols()
 
-        # Убираем саморефералов
         self.cursor.execute(
             "UPDATE users SET referrer_id = NULL WHERE referrer_id = user_id")
         self.conn.commit()
@@ -199,6 +198,18 @@ class Database:
         self.cursor.execute("UPDATE users SET bet=? WHERE user_id=?", (bet, uid))
         self.conn.commit()
         return True
+
+    def get_bet_currency(self, uid):
+        self.get_user(uid)
+        self.cursor.execute("SELECT bet_currency FROM users WHERE user_id=?", (uid,))
+        r = self.cursor.fetchone()
+        return r[0] if r and r[0] else "usd"
+
+    def set_bet_currency(self, uid, currency):
+        self.get_user(uid)
+        self.cursor.execute("UPDATE users SET bet_currency=? WHERE user_id=?",
+                            (currency, uid))
+        self.conn.commit()
 
     # ============ BALANCE ============
     def get_balance(self, uid):
@@ -425,9 +436,23 @@ class Database:
     def add_ref_earnings(self, ref_id, amount):
         self.get_user(ref_id)
         self.cursor.execute(
-            "UPDATE users SET earned_ref=earned_ref+?, balance=balance+? WHERE user_id=?",
-            (amount, amount, ref_id))
+            "UPDATE users SET earned_ref=earned_ref+? WHERE user_id=?",
+            (amount, ref_id))
         self.conn.commit()
+
+    def withdraw_ref_to_balance(self, uid):
+        """Переносит earned_ref на balance. Возвращает сумму перевода."""
+        self.get_user(uid)
+        self.cursor.execute("SELECT earned_ref FROM users WHERE user_id=?", (uid,))
+        r = self.cursor.fetchone()
+        amount = float(r[0]) if r and r[0] else 0.0
+        if amount <= 0:
+            return 0.0
+        self.cursor.execute(
+            "UPDATE users SET balance = balance + ?, earned_ref = 0 "
+            "WHERE user_id = ?", (amount, uid))
+        self.conn.commit()
+        return amount
 
     # ============ ACTIVE GAMES ============
     def set_active_game(self, uid, gt, state, bet, mult, data=""):

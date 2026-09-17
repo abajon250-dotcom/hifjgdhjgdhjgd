@@ -7,6 +7,7 @@ from math_engine import (mines_multiplier, tower_multiplier,
                           generate_crash_point, keno_multiplier,
                           roulette_multiplier)
 from utils.emoji import DOLLAR, WALLET, BET
+from utils.user_state import get_bet
 
 router = Router()
 
@@ -474,3 +475,83 @@ async def roulette_start(call: types.CallbackQuery):
                                       callback_data="games_main", style="primary")],
             ]), parse_mode="HTML")
     await call.answer()
+
+
+# ============================================================
+#              ПРЯМОЙ ЗАПУСК АРКАД (из текста)
+# ============================================================
+async def start_crash_direct(message, uid, bet):
+    db.update_balance(uid, -bet)
+    db.add_wager(uid, bet)
+    db.inc_games(uid)
+    cp = generate_crash_point()
+    db.set_active_game(uid, "crash", "playing", bet, 1.0, f"{cp}|1.0")
+    msg = await message.answer(
+        f"🚀 <b>Краш</b>\nМножитель: <b>1.00x</b>",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="💰 Забрать 1.00x",
+                                  callback_data=f"ccs:{uid}")],
+        ]), parse_mode="HTML")
+    asyncio.create_task(_crash_loop(uid, msg, cp, bet))
+
+
+async def play_keno_direct(message, uid, bet):
+    db.update_balance(uid, -bet)
+    db.add_wager(uid, bet)
+    db.inc_games(uid)
+    hits = random.randint(0, 5)
+    mult = keno_multiplier(hits, 5)
+    win = round(bet * mult, 2)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🎮 Меню игр", callback_data="games_main",
+                              style="primary")],
+    ])
+    if mult > 0:
+        db.update_balance(uid, win)
+        db.add_win(uid, win)
+        db.add_game(uid, "keno", bet, win, mult, "win")
+        from utils.refs import give_ref_bonus
+        give_ref_bonus(uid, win)
+        await message.answer(
+            f"🎯 Кено\nУгадано: {hits}/5\n✅ +{win:.2f} {DOLLAR}\n"
+            f"Баланс: <b>{db.get_balance(uid):.2f}</b>",
+            reply_markup=kb, parse_mode="HTML")
+    else:
+        db.add_loss(uid, bet)
+        db.add_game(uid, "keno", bet, 0, 0, "lose")
+        await message.answer(
+            f"🎯 Кено\nУгадано: {hits}/5\n❌ -{bet:.2f} {DOLLAR}\n"
+            f"Баланс: <b>{db.get_balance(uid):.2f}</b>",
+            reply_markup=kb, parse_mode="HTML")
+
+
+async def play_roulette_direct(message, uid, bet):
+    db.update_balance(uid, -bet)
+    db.add_wager(uid, bet)
+    db.inc_games(uid)
+    n = random.randint(0, 36)
+    reds = {1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36}
+    color = "green" if n == 0 else ("red" if n in reds else "black")
+    win, result = roulette_multiplier(bet, "red", n, color)
+    ci = {"red":"🔴","black":"⚫","green":"🟢"}[color]
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🎮 Меню игр", callback_data="games_main",
+                              style="primary")],
+    ])
+    if result == "win":
+        db.update_balance(uid, win)
+        db.add_win(uid, win)
+        db.add_game(uid, "roulette", bet, win, 2.0, "win")
+        from utils.refs import give_ref_bonus
+        give_ref_bonus(uid, win)
+        await message.answer(
+            f"🎡 Рулетка\nВыпало {ci} <b>{n}</b>\n✅ +{win:.2f} {DOLLAR}\n"
+            f"Баланс: <b>{db.get_balance(uid):.2f}</b>",
+            reply_markup=kb, parse_mode="HTML")
+    else:
+        db.add_loss(uid, bet)
+        db.add_game(uid, "roulette", bet, 0, 0, "lose")
+        await message.answer(
+            f"🎡 Рулетка\nВыпало {ci} <b>{n}</b>\n❌ -{bet:.2f} {DOLLAR}\n"
+            f"Баланс: <b>{db.get_balance(uid):.2f}</b>",
+            reply_markup=kb, parse_mode="HTML")

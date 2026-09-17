@@ -5,110 +5,141 @@ from aiogram import Bot
 log = logging.getLogger(__name__)
 
 
-def _get_ids():
-    """Читает ID каналов при каждом вызове — env точно загружен."""
+def _ids():
     return (
         os.getenv("SOURCE_CHANNEL_ID"),
         os.getenv("WIN_NOTIFY_CHANNEL"),
-        float(os.getenv("WIN_NOTIFY_MIN", 0.5)),
+        float(os.getenv("WIN_NOTIFY_MIN", 1)),
     )
 
 
+# Русские названия исходов
 CHOICE_TEXT = {
-    "even": "Чёт", "odd": "Нечёт",
-    "less": "Меньше 4", "more": "Больше 3",
-    "numbers": "Числа", "no_numbers": "Без чисел",
-    "ladder1": "Лесенка 1", "ladder2": "Лесенка 2",
-    "double": "Дубль", "sum_prod": "Сумма/Произведение",
-    "corridor": "Коридор", "sniper": "Снайпер", "lift": "Лифт",
-    "sum7_less": "Сумма < 7", "sum7_greater": "Сумма > 7", "sum7_exact": "Сумма = 7",
-    "three_even": "Три чёт", "three_odd": "Три нечет",
-    "triple": "Трипл", "unique": "Уникальные",
-    "straight": "Стрит", "combination": "Комбинация",
-    "greater_10": "Сумма > 10", "less_11": "Сумма < 11",
-    "big": "Большой куб",
-    # Спорт
-    "clean": "Чистый гол", "any": "Любой гол", "stuck": "Застрял мяч",
-    "miss": "Промах", "center": "Центр", "red": "Красный",
-    "white": "Белый", "bounce": "Отскок", "nine": "Девятка",
-    "bar": "Штанга", "strike": "Страйк",
-    "otskok": "Отскок", "blizko": "Близко", "zastryal": "Застрял",
-    "edge": "С краем", "direct": "Прямое",
-    # Слоты
-    "777": "777", "77x": "77*", "any_sl": "Любая комбинация",
-    "lucky7": "Лаки 7", "lines": "Линии", "sum": "Сумма",
-    "piggy": "Копилка", "ladder": "Лесенка",
+    "even": "чётное", "odd": "нечётное",
+    "less": "меньше", "more": "больше",
+    "sum7_less": "сумма < 7", "sum7_greater": "сумма > 7",
+    "sum7_exact": "сумма = 7",
+    "double": "дубль", "sum_prod": "сумма/произведение",
+    "corridor": "коридор", "sniper": "снайпер", "lift": "лифт",
+    "three_even": "три чёт", "three_odd": "три нечет",
+    "triple": "трипл", "unique": "уникальные",
+    "straight": "стрит", "combination": "комбо",
+    "greater_10": "сумма > 10", "less_11": "сумма < 11",
+    "big": "большой куб",
+    "clean": "чистый гол", "any": "любой гол", "stuck": "застрял",
+    "miss": "промах", "center": "центр", "red": "красный",
+    "white": "белый", "bounce": "отскок", "nine": "девятка",
+    "bar": "штанга", "strike": "страйк",
+    "otskok": "отскок", "blizko": "близко", "zastryal": "застрял",
+    "edge": "с краем", "direct": "прямое",
+    "777": "777", "77x": "77*", "any_sl": "любая комбинация",
+    "lucky7": "лаки 7", "lines": "линии", "sum": "сумма",
+    "piggy": "копилка", "ladder": "лесенка",
 }
 
 
-def _label(choice: str) -> str:
+def _label(choice):
     if choice in CHOICE_TEXT:
         return CHOICE_TEXT[choice]
     if choice.startswith("num"):
-        return f"Число {choice[3:]}"
+        return f"на число {choice[3:]}"
     if choice.startswith("exact_"):
-        return f"Точное {choice.split('_')[1]}"
+        return f"на точное {choice.split('_')[1]}"
     if choice.startswith("prod_"):
-        return f"Произведение ≥ {choice.split('_')[1]}"
+        return f"произв. ≥ {choice.split('_')[1]}"
     return choice
 
 
-async def notify_result(bot: Bot, uid: int, username: str, game: str,
-                        choice: str, bet: float, win: float,
-                        mult: float, balance: float, is_win: bool):
-    """Отправляет результат: пишет в SOURCE, потом пересылает в TARGET."""
-    source_id, target_id, min_win = _get_ids()
+async def _send_to_channels(bot: Bot, text: str, parse_mode="HTML"):
+    """Пишет в SOURCE и пересылает в TARGET."""
+    source, target, _ = _ids()
+    if not source or not target:
+        log.warning("[notify] каналы не заданы")
+        return None
+    try:
+        msg = await bot.send_message(int(source), text, parse_mode=parse_mode)
+        await bot.forward_message(
+            chat_id=int(target),
+            from_chat_id=int(source),
+            message_id=msg.message_id)
+        try:
+            await bot.delete_message(int(source), msg.message_id)
+        except Exception:
+            pass
+        return msg
+    except Exception as e:
+        log.error(f"[notify] {e}")
+        return None
 
-    log.info(f"[notify] source={source_id} target={target_id} min={min_win}")
-    log.info(f"[notify] bet={bet} win={win} game={game}")
 
-    if not source_id or not target_id:
-        log.warning("[notify] SOURCE_CHANNEL_ID или WIN_NOTIFY_CHANNEL не заданы в .env")
+# ============================================================
+#              УВЕДОМЛЕНИЕ О ДЕПОЗИТЕ
+# ============================================================
+async def notify_deposit(bot, uid, username, amount):
+    source, target, min_dep = _ids()
+    if not source or not target:
         return
+    if amount < min_dep:
+        return
+    mention = f'<a href="tg://user?id={uid}">{username or "player"}</a>'
+    text = (
+        f'<tg-emoji emoji-id="5445355530111437729">📤</tg-emoji> '
+        f'<b>Депозит</b>\n\n'
+        f'👤 {mention}\n'
+        f'💰 Сумма: <b>{amount:.2f}</b> USDT'
+    )
+    await _send_to_channels(bot, text)
 
+
+# ============================================================
+#              УВЕДОМЛЕНИЕ О СТАВКЕ (перед броском)
+# ============================================================
+async def notify_bet(bot, uid, username, game_name, bet, emoji="🎲"):
+    source, target, min_bet = _ids()
+    if not source or not target:
+        return
+    if bet < min_bet:
+        return
+    mention = f'<a href="tg://user?id={uid}">{username or "player"}</a>'
+    text = (
+        f'<tg-emoji emoji-id="5321230889357713132">🎲</tg-emoji> '
+        f'<b>{mention}</b>, ставка — <b>{bet:.2f}</b>💲'
+    )
+    await _send_to_channels(bot, text)
+
+
+# ============================================================
+#              РЕЗУЛЬТАТ ИГРЫ
+# ============================================================
+async def notify_result(bot, uid, username, game_name, choice,
+                        bet, win, mult, balance, is_win):
+    source, target, min_win = _ids()
+    if not source or not target:
+        return
     if win < min_win and bet < min_win:
-        log.info(f"[notify] ниже порога: win={win} bet={bet} < {min_win}")
         return
 
-    mention = f'<a href="tg://user?id={uid}">@{username or "player"}</a>'
+    mention = f'<a href="tg://user?id={uid}">{username or "player"}</a>'
     label = _label(choice)
 
     if is_win:
-        header = f"😎 {mention}, выиграл <b>{win:.2f}</b>💲"
+        header = (
+            f'<tg-emoji emoji-id="5449683594425410231">🔼</tg-emoji> '
+            f'<b>{mention}</b>, выиграл <b>{win:.2f}</b>💲'
+        )
     else:
-        header = f"😎 {mention}, проиграл <b>{bet:.2f}</b>💲"
+        header = (
+            f'<tg-emoji emoji-id="5447183459602669338">🔽</tg-emoji> '
+            f'<b>{mention}</b>, проиграл <b>{bet:.2f}</b>💲'
+        )
 
     text = (
         f"{header}\n\n"
-        f"<blockquote>🎲 {game} — {label} × {mult:.2f}</blockquote>\n\n"
+        f"<blockquote>"
+        f'<tg-emoji emoji-id="5321230889357713132">🎲</tg-emoji> '
+        f"{game_name} — {label} × {mult:.2f}"
+        f"</blockquote>\n\n"
         f"Ставка: <b>{bet:.2f}</b>💲\n"
-        f"Баланс: <b>{balance:.2f}</b>💲"
+        f"Баланс: <b>{balance:.2f}</b>"
     )
-
-    try:
-        msg = await bot.send_message(int(source_id), text, parse_mode="HTML")
-        log.info(f"[notify] отправлено в source, id={msg.message_id}")
-
-        await bot.forward_message(
-            chat_id=int(target_id),
-            from_chat_id=int(source_id),
-            message_id=msg.message_id
-        )
-        log.info(f"[notify] переслано в target")
-
-        try:
-            await bot.delete_message(int(source_id), msg.message_id)
-        except Exception:
-            pass
-
-    except Exception as e:
-        log.error(f"[notify_result] ОШИБКА: {e}")
-
-
-async def notify_win(bot, uid, username, game, bet, win, mult, balance=None):
-    await notify_result(bot, uid, username, game, "", bet, win, mult,
-                        balance or 0.0, True)
-
-
-async def notify_big_bet(bot, uid, username, game, bet):
-    pass
+    await _send_to_channels(bot, text)

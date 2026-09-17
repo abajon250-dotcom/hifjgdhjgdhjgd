@@ -5,7 +5,8 @@ from database import db
 from keyboards.inline import dice_menu_1, dice_menu_2, dice_menu_3
 from math_engine import calc_1_dice, calc_2_dice, calc_3_dice
 from utils.emoji import DOLLAR, WALLET, DICE, BET
-from utils.notify import notify_result
+from utils.notify import notify_result, notify_bet
+from utils.user_state import get_bet
 
 router = Router()
 
@@ -125,7 +126,7 @@ async def play_1_two(call: types.CallbackQuery):
         result = "lose"
 
     await _finish(call, uid, "dice_1_two", v, bet, win, result,
-                  2.8 if result == "win" else 0)
+                  2.8 if result == "win" else 0, f"two{nums_str}")
 
 
 async def _play(call, uid, dtype, choice):
@@ -138,6 +139,15 @@ async def _play(call, uid, dtype, choice):
     db.update_balance(uid, -bet)
     db.add_wager(uid, bet)
     db.inc_games(uid)
+
+    # Уведомление о ставке
+    try:
+        row = db.cursor.execute("SELECT username FROM users WHERE user_id=?",
+                                 (uid,)).fetchone()
+        uname = row[0] if row and row[0] else f"id{uid}"
+        await notify_bet(call.bot, uid, uname, "Куб", bet, "🎲")
+    except Exception:
+        pass
 
     await call.message.edit_text(
         f"{DICE} Бросаю... Ставка: <b>{bet}</b> {DOLLAR}", parse_mode="HTML")
@@ -169,18 +179,27 @@ async def _play(call, uid, dtype, choice):
         value = f"{v1} + {v2} + {v3} = {v1+v2+v3}"
 
     mult = win / bet if bet and win > 0 else 0
-    await _finish(call, uid, f"dice_{dtype}", value, bet, win, result, mult)
+    await _finish(call, uid, f"dice_{dtype}", value, bet, win, result, mult, choice)
 
 
-async def _finish(call, uid, game_key, value, bet, win, result, mult):
+async def _finish(call, uid, game_key, value, bet, win, result, mult, choice=""):
     row = db.cursor.execute("SELECT username FROM users WHERE user_id=?",
                              (uid,)).fetchone()
     uname = (row[0] if row and row[0] else f"id{uid}")
     mention = f'<a href="tg://user?id={uid}">{uname}</a>'
 
+    # Формируем callback "Повторить"
+    if game_key.startswith("dice_"):
+        dtype_num = game_key.replace("dice_", "")
+        repeat_cb = f"replay:dice{dtype_num}:{choice}:{uid}"
+        game_name = "Куб"
+    else:
+        repeat_cb = "games_main"
+        game_name = game_key
+
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔁 Повторить",
-                              callback_data=f"dice:1", style="success")],
+                              callback_data=repeat_cb, style="success")],
         [InlineKeyboardButton(text="🎮 Меню игр",
                               callback_data="games_main", style="primary")],
     ])
@@ -202,7 +221,7 @@ async def _finish(call, uid, game_key, value, bet, win, result, mult):
             reply_markup=kb, parse_mode="HTML")
 
         try:
-            await notify_result(call.bot, uid, uname, "Кубик", str(value),
+            await notify_result(call.bot, uid, uname, game_name, choice,
                                 bet, win, mult, new_bal, True)
         except Exception as e:
             print(f"notify_win: {e}")
@@ -219,7 +238,105 @@ async def _finish(call, uid, game_key, value, bet, win, result, mult):
             reply_markup=kb, parse_mode="HTML")
 
         try:
-            await notify_result(call.bot, uid, uname, "Кубик", str(value),
+            await notify_result(call.bot, uid, uname, game_name, choice,
+                                bet, 0, 0, new_bal, False)
+        except Exception as e:
+            print(f"notify_lose: {e}")
+
+
+# ============================================================
+#              ПРЯМОЙ ЗАПУСК (из текстовых команд)
+# ============================================================
+async def play_dice_direct(message: types.Message, dtype: int, choice: str):
+    uid = message.from_user.id
+    bet = get_bet(uid)
+    if not db.has_enough(uid, bet):
+        return await message.answer(
+            f"❌ Нужно <b>{bet}</b> {DOLLAR}. "
+            f"Баланс: {db.get_balance(uid):.2f}",
+            parse_mode="HTML")
+
+    db.update_balance(uid, -bet)
+    db.add_wager(uid, bet)
+    db.inc_games(uid)
+
+    # Уведомление о ставке
+    try:
+        row = db.cursor.execute("SELECT username FROM users WHERE user_id=?",
+                                 (uid,)).fetchone()
+        uname = row[0] if row and row[0] else f"id{uid}"
+        await notify_bet(message.bot, uid, uname, "Куб", bet, "🎲")
+    except Exception:
+        pass
+
+    await message.answer(
+        f"{DICE} Бросаю... Ставка: <b>{bet}</b> {DOLLAR}",
+        parse_mode="HTML")
+
+    if dtype == 1:
+        m = await message.answer_dice(emoji="🎲")
+        await asyncio.sleep(3.5)
+        v = m.dice.value
+        win, result = calc_1_dice(bet, choice, v)
+        value = v
+    else:
+        m1 = await message.answer_dice(emoji="🎲")
+        await asyncio.sleep(3.5)
+        m2 = await message.answer_dice(emoji="🎲")
+        await asyncio.sleep(3.5)
+        v1, v2 = m1.dice.value, m2.dice.value
+        win, result = calc_2_dice(bet, choice, v1, v2)
+        value = f"{v1} + {v2} = {v1+v2}"
+
+    mult = win / bet if bet and win > 0 else 0
+
+    row = db.cursor.execute("SELECT username FROM users WHERE user_id=?",
+                             (uid,)).fetchone()
+    uname = (row[0] if row and row[0] else f"id{uid}")
+    mention = f'<a href="tg://user?id={uid}">{uname}</a>'
+
+    repeat_cb = f"replay:dice{dtype}:{choice}:{uid}"
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔁 Повторить",
+                              callback_data=repeat_cb, style="success")],
+        [InlineKeyboardButton(text="🎮 Меню игр",
+                              callback_data="games_main", style="primary")],
+    ])
+
+    if result == "win":
+        db.update_balance(uid, win)
+        db.add_win(uid, win)
+        db.add_game(uid, f"dice_{dtype}", bet, win, mult, "win")
+        new_bal = db.get_balance(uid)
+        from utils.refs import give_ref_bonus
+        give_ref_bonus(uid, win)
+
+        await message.answer(
+            f"🔼 {mention} выигрывает <b>{win - bet:.2f}</b> {DOLLAR}\n\n"
+            f"<blockquote>🎲 Выпало: <b>{value}</b>\n"
+            f"{BET} Ставка: <b>{bet:.2f}</b> {DOLLAR}\n"
+            f"{WALLET} Баланс: <b>{new_bal:.2f}</b> {DOLLAR}</blockquote>",
+            reply_markup=kb, parse_mode="HTML")
+
+        try:
+            await notify_result(message.bot, uid, uname, "Куб", choice,
+                                bet, win, mult, new_bal, True)
+        except Exception as e:
+            print(f"notify_win: {e}")
+    else:
+        db.add_loss(uid, bet)
+        db.add_game(uid, f"dice_{dtype}", bet, 0, 0, "lose")
+        new_bal = db.get_balance(uid)
+
+        await message.answer(
+            f"🔽 {mention} проигрывает <b>{bet:.2f}</b> {DOLLAR}\n\n"
+            f"<blockquote>🎲 Выпало: <b>{value}</b>\n"
+            f"{BET} Ставка: <b>{bet:.2f}</b> {DOLLAR}\n"
+            f"{WALLET} Баланс: <b>{new_bal:.2f}</b> {DOLLAR}</blockquote>",
+            reply_markup=kb, parse_mode="HTML")
+
+        try:
+            await notify_result(message.bot, uid, uname, "Куб", choice,
                                 bet, 0, 0, new_bal, False)
         except Exception as e:
             print(f"notify_lose: {e}")

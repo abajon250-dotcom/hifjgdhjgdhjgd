@@ -4,6 +4,8 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from database import db
 from math_engine import calc_football, calc_basketball, calc_darts, calc_bowling
 from utils.emoji import DOLLAR, WALLET, BET
+from utils.notify import notify_result, notify_bet
+from utils.user_state import get_bet
 
 router = Router()
 
@@ -104,6 +106,14 @@ async def _play(call, uid, game, emoji, choice, calc_fn):
     db.add_wager(uid, bet)
     db.inc_games(uid)
 
+    try:
+        row = db.cursor.execute("SELECT username FROM users WHERE user_id=?",
+                                 (uid,)).fetchone()
+        uname = row[0] if row and row[0] else f"id{uid}"
+        await notify_bet(call.bot, uid, uname, game.capitalize(), bet, emoji)
+    except Exception:
+        pass
+
     await call.message.edit_text(
         f"{emoji} Играем... Ставка: <b>{bet}</b> {DOLLAR}",
         parse_mode="HTML")
@@ -121,15 +131,19 @@ async def _play(call, uid, game, emoji, choice, calc_fn):
     uname = (row[0] if row and row[0] else f"id{uid}")
     mention = f'<a href="tg://user?id={uid}">{uname}</a>'
 
+    repeat_cb = f"replay:sport_{game}:{choice}:{uid}"
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🎮 Меню игр", callback_data="games_main",
-                              style="primary")],
+        [InlineKeyboardButton(text="🔁 Повторить",
+                              callback_data=repeat_cb, style="success")],
+        [InlineKeyboardButton(text="🎮 Меню игр",
+                              callback_data="games_main", style="primary")],
     ])
 
     if result == "win":
         db.update_balance(uid, win)
         db.add_win(uid, win)
         db.add_game(uid, f"sport_{game}", bet, win, mult, "win")
+        new_bal = db.get_balance(uid)
 
         from utils.refs import give_ref_bonus
         give_ref_bonus(uid, win)
@@ -138,14 +152,127 @@ async def _play(call, uid, game, emoji, choice, calc_fn):
             f"🔼 {mention} выигрывает <b>{win - bet:.2f}</b> {DOLLAR}\n\n"
             f"<blockquote>{emoji} Выпало: <b>{v}</b>\n"
             f"{BET} Ставка: <b>{bet:.2f}</b> {DOLLAR}\n"
-            f"{WALLET} Баланс: <b>{db.get_balance(uid):.2f}</b> {DOLLAR}</blockquote>",
+            f"{WALLET} Баланс: <b>{new_bal:.2f}</b> {DOLLAR}</blockquote>",
             reply_markup=kb, parse_mode="HTML")
+
+        try:
+            await notify_result(call.bot, uid, uname, game.capitalize(),
+                                choice, bet, win, mult, new_bal, True)
+        except Exception:
+            pass
     else:
         db.add_loss(uid, bet)
         db.add_game(uid, f"sport_{game}", bet, 0, 0, "lose")
+        new_bal = db.get_balance(uid)
+
         await call.message.reply(
             f"🔽 {mention} проигрывает <b>{bet:.2f}</b> {DOLLAR}\n\n"
             f"<blockquote>{emoji} Выпало: <b>{v}</b>\n"
             f"{BET} Ставка: <b>{bet:.2f}</b> {DOLLAR}\n"
-            f"{WALLET} Баланс: <b>{db.get_balance(uid):.2f}</b> {DOLLAR}</blockquote>",
+            f"{WALLET} Баланс: <b>{new_bal:.2f}</b> {DOLLAR}</blockquote>",
             reply_markup=kb, parse_mode="HTML")
+
+        try:
+            await notify_result(call.bot, uid, uname, game.capitalize(),
+                                choice, bet, 0, 0, new_bal, False)
+        except Exception:
+            pass
+
+
+# ============================================================
+#              ПРЯМОЙ ЗАПУСК СПОРТА (из текста)
+# ============================================================
+async def play_sport_direct(message: types.Message, game: str, choice: str):
+    uid = message.from_user.id
+    bet = get_bet(uid)
+    if not db.has_enough(uid, bet):
+        return await message.answer(
+            f"❌ Нужно <b>{bet}</b> {DOLLAR}. "
+            f"Баланс: {db.get_balance(uid):.2f}",
+            parse_mode="HTML")
+
+    db.update_balance(uid, -bet)
+    db.add_wager(uid, bet)
+    db.inc_games(uid)
+
+    emoji_map = {"football": "⚽", "basketball": "🏀",
+                 "darts": "🎯", "bowling": "🎳"}
+    emoji = emoji_map[game]
+
+    try:
+        row = db.cursor.execute("SELECT username FROM users WHERE user_id=?",
+                                 (uid,)).fetchone()
+        uname = row[0] if row and row[0] else f"id{uid}"
+        await notify_bet(message.bot, uid, uname, game.capitalize(), bet, emoji)
+    except Exception:
+        pass
+
+    await message.answer(
+        f"{emoji} Играем... Ставка: <b>{bet}</b> {DOLLAR}",
+        parse_mode="HTML")
+
+    m = await message.answer_dice(emoji=emoji)
+    await asyncio.sleep(3.5)
+    v = m.dice.value
+
+    if game == "football":
+        win, result = calc_football(bet, choice, v)
+    elif game == "basketball":
+        win, result = calc_basketball(bet, choice, v)
+    elif game == "darts":
+        win, result = calc_darts(bet, choice, v)
+    else:
+        win, result = calc_bowling(bet, choice, v)
+
+    mult = win / bet if bet and win > 0 else 0
+
+    row = db.cursor.execute("SELECT username FROM users WHERE user_id=?",
+                             (uid,)).fetchone()
+    uname = (row[0] if row and row[0] else f"id{uid}")
+    mention = f'<a href="tg://user?id={uid}">{uname}</a>'
+
+    repeat_cb = f"replay:sport_{game}:{choice}:{uid}"
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔁 Повторить",
+                              callback_data=repeat_cb, style="success")],
+        [InlineKeyboardButton(text="🎮 Меню игр",
+                              callback_data="games_main", style="primary")],
+    ])
+
+    if result == "win":
+        db.update_balance(uid, win)
+        db.add_win(uid, win)
+        db.add_game(uid, f"sport_{game}", bet, win, mult, "win")
+        new_bal = db.get_balance(uid)
+        from utils.refs import give_ref_bonus
+        give_ref_bonus(uid, win)
+
+        await message.answer(
+            f"🔼 {mention} выигрывает <b>{win - bet:.2f}</b> {DOLLAR}\n\n"
+            f"<blockquote>{emoji} Выпало: <b>{v}</b>\n"
+            f"{BET} Ставка: <b>{bet:.2f}</b> {DOLLAR}\n"
+            f"{WALLET} Баланс: <b>{new_bal:.2f}</b> {DOLLAR}</blockquote>",
+            reply_markup=kb, parse_mode="HTML")
+
+        try:
+            await notify_result(message.bot, uid, uname, game.capitalize(),
+                                choice, bet, win, mult, new_bal, True)
+        except Exception:
+            pass
+    else:
+        db.add_loss(uid, bet)
+        db.add_game(uid, f"sport_{game}", bet, 0, 0, "lose")
+        new_bal = db.get_balance(uid)
+
+        await message.answer(
+            f"🔽 {mention} проигрывает <b>{bet:.2f}</b> {DOLLAR}\n\n"
+            f"<blockquote>{emoji} Выпало: <b>{v}</b>\n"
+            f"{BET} Ставка: <b>{bet:.2f}</b> {DOLLAR}\n"
+            f"{WALLET} Баланс: <b>{new_bal:.2f}</b> {DOLLAR}</blockquote>",
+            reply_markup=kb, parse_mode="HTML")
+
+        try:
+            await notify_result(message.bot, uid, uname, game.capitalize(),
+                                choice, bet, 0, 0, new_bal, False)
+        except Exception:
+            pass

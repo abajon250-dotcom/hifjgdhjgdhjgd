@@ -12,6 +12,7 @@ from math_engine import apply_deposit_commission
 from utils.emoji import (DOLLAR, WALLET, DEPOSIT, BET, GAMES, FLY_MONEY,
                           CRYPTOBOT, XROCKET, STARS)
 from utils.errors import format_error
+from utils.notify import notify_deposit
 
 router = Router()
 
@@ -54,6 +55,18 @@ async def _show_after_deposit(message_or_call, uid, credited):
     kb = _after_deposit_kb(uid)
     if hasattr(message_or_call, "answer"):
         await message_or_call.answer(text, reply_markup=kb, parse_mode="HTML")
+
+
+async def _notify_deposit_safe(bot, uid, credited):
+    """Обёртка — не падает, если что-то не так."""
+    try:
+        row = db.cursor.execute(
+            "SELECT username FROM users WHERE user_id=?",
+            (uid,)).fetchone()
+        uname = row[0] if row and row[0] else f"id{uid}"
+        await notify_deposit(bot, uid, uname, credited)
+    except Exception as e:
+        print(f"notify_deposit error: {e}")
 
 
 # ============================================================
@@ -151,8 +164,11 @@ async def process_custom_amount(message: types.Message, state: FSMContext):
     await state.clear()
 
     class F:
-        def __init__(s, m): s.from_user = m.from_user; s.message = m
-        async def answer(s, *a, **k): pass
+        def __init__(s, m):
+            s.from_user = m.from_user
+            s.message = m
+        async def answer(s, *a, **k):
+            pass
 
     await _process_deposit(F(message), method, amount)
 
@@ -213,7 +229,7 @@ async def _process_deposit(call, method: str, amount: float):
             "payCurrencies": ["USDT"],
             "description": f"Пополнение баланса",
             "clientInvoiceId": f"dep_{uid}_{int(amount*100)}_{int(time.time())}",
-            "expiresIn": 900000,  # миллисекунды!
+            "expiresIn": 900000,
             "customer": {"telegramId": str(uid)},
         }
         try:
@@ -284,6 +300,7 @@ async def check_payment(call: types.CallbackQuery):
     invoice_id = parts[2] if len(parts) > 2 else ""
     uid = call.from_user.id
 
+    # ---------------- CRYPTOBOT ----------------
     if provider == "crypto":
         headers = {"Crypto-Pay-API-Token": CRYPTO_TOKEN}
         try:
@@ -302,11 +319,16 @@ async def check_payment(call: types.CallbackQuery):
             db.add_deposit(uid, credited)
             db.add_transaction(uid, "deposit", "crypto",
                                credited, 0.0, "success", invoice_id)
+
+            # Уведомление в канал
+            await _notify_deposit_safe(call.bot, uid, credited)
+
             await call.message.delete()
             await _show_after_deposit(call.message, uid, credited)
             return await call.answer()
         return await call.answer("❌ Оплата ещё не поступила.", show_alert=True)
 
+    # ---------------- XROCKET ----------------
     if provider == "xrocket":
         if not invoice_id:
             return await call.answer("❌ Счёт не найден.", show_alert=True)
@@ -338,6 +360,10 @@ async def check_payment(call: types.CallbackQuery):
             db.add_deposit(uid, credited)
             db.add_transaction(uid, "deposit", "xrocket",
                                credited, 0.0, "success", str(invoice_id))
+
+            # Уведомление в канал
+            await _notify_deposit_safe(call.bot, uid, credited)
+
             await call.message.delete()
             await _show_after_deposit(call.message, uid, credited)
             return await call.answer()
@@ -363,4 +389,8 @@ async def stars_paid(message: types.Message):
     db.add_deposit(message.from_user.id, usd)
     db.add_transaction(message.from_user.id, "deposit", "stars",
                        usd, 0.0, "success")
+
+    # Уведомление в канал
+    await _notify_deposit_safe(message.bot, message.from_user.id, usd)
+
     await _show_after_deposit(message, message.from_user.id, usd)

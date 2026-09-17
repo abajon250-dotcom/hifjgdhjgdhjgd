@@ -461,3 +461,134 @@ async def cmd_bowling(message: types.Message):
         f"🎳 <a href='tg://user?id={uid}'>{message.from_user.full_name}</a>, "
         f"{BET} <b>{bet}</b> {DOLLAR}",
         reply_markup=_sport_kb("wc", items, uid), parse_mode="HTML")
+
+# ============================================================
+#              СТАВКА ЧИСЛОМ: 24 или 24$
+# ============================================================
+@router.message(F.text.regexp(r"^\s*\d+(?:[.,]\d+)?\s*\$?\s*$"))
+async def cmd_bet_short(message: types.Message):
+    uid = message.from_user.id
+    t = (message.text or "").strip().replace("$", "").replace(",", ".").strip()
+    try:
+        bet = float(t)
+        if bet <= 0:
+            return
+    except Exception:
+        return
+    bal = db.get_balance(uid)
+    if bet > bal:
+        return await message.answer(
+            f"❌ <b>Ставка больше баланса</b>\n\n"
+            f"{DOLLAR} Баланс: <b>{bal:.2f}</b>\n"
+            f"{BET} Попытка: <b>{bet:.2f}</b>",
+            parse_mode="HTML")
+    if db.set_bet(uid, bet):
+        await message.answer(f"✅ Ставка: <b>{bet}</b> {DOLLAR}",
+                             parse_mode="HTML")
+
+
+# ============================================================
+#              КУБИКИ ПО ТЕКСТУ — ПРЯМОЙ ЗАПУСК
+# ============================================================
+@router.message(F.text.regexp(r"(?i)^куб\s+([1-6])$"))
+async def go_dice_num(message: types.Message):
+    from handlers.dice_games import play_dice_direct
+    n = int(message.text.split()[-1])
+    await play_dice_direct(message, 1, f"num{n}")
+
+
+@router.message(F.text.regexp(r"(?i)^куб\s*7-$"))
+async def go_dice_less(message: types.Message):
+    from handlers.dice_games import play_dice_direct
+    await play_dice_direct(message, 2, "less")
+
+
+@router.message(F.text.regexp(r"(?i)^куб\s*7\+$"))
+async def go_dice_more(message: types.Message):
+    from handlers.dice_games import play_dice_direct
+    await play_dice_direct(message, 2, "more")
+
+
+@router.message(F.text.regexp(r"(?i)^куб\s*7$"))
+async def go_dice_sum7(message: types.Message):
+    from handlers.dice_games import play_dice_direct
+    await play_dice_direct(message, 2, "sum7_exact")
+
+
+# ============================================================
+#              СЛОТЫ ПО ТЕКСТУ
+# ============================================================
+@router.message(F.text.regexp(r"(?i)^(слоты|слот)$"))
+async def go_slots(message: types.Message):
+    from handlers.slots import play_slots_direct
+    await play_slots_direct(message, "any")
+
+
+# ============================================================
+#              СПОРТ ПО ТЕКСТУ: "баскет гол" и т.д.
+# ============================================================
+SPORT_TEXT = {
+    ("футбол", "гол"):     ("football",   "clean"),
+    ("футбол", "мимо"):    ("football",   "miss"),
+    ("футбол", "штанга"):  ("football",   "stuck"),
+    ("баскет", "гол"):     ("basketball", "center"),
+    ("баскет", "отскок"):  ("basketball", "bounce"),
+    ("баскет", "красный"): ("basketball", "red"),
+    ("баскет", "белый"):   ("basketball", "white"),
+    ("дартс", "центр"):    ("darts",      "center"),
+    ("дартс", "промах"):   ("darts",      "miss"),
+    ("дартс", "штанга"):   ("darts",      "bar"),
+    ("боулинг", "страйк"): ("bowling",    "strike"),
+    ("боулинг", "промах"): ("bowling",    "miss"),
+}
+
+
+@router.message(F.text.regexp(
+    r"(?i)^(футбол|баскет|дартс|боулинг)\s+\S+$"))
+async def go_sport_text(message: types.Message):
+    parts = (message.text or "").lower().split()
+    if len(parts) != 2:
+        return
+    key = (parts[0], parts[1])
+    if key not in SPORT_TEXT:
+        opts = ", ".join(k[1] for k in SPORT_TEXT if k[0] == parts[0])
+        return await message.answer(
+            f"❌ Не знаю исход <code>{parts[1]}</code> для «{parts[0]}»\n\n"
+            f"Доступные: <b>{opts}</b>", parse_mode="HTML")
+    game, choice = SPORT_TEXT[key]
+    from handlers.sport_games import play_sport_direct
+    await play_sport_direct(message, game, choice)
+
+
+# ============================================================
+#              КНОПКА "ПОВТОРИТЬ"
+# ============================================================
+@router.callback_query(F.data.startswith("replay:"))
+async def replay_game(call: types.CallbackQuery):
+    parts = call.data.split(":")
+    if len(parts) < 4:
+        return await call.answer()
+    game_type = parts[1]
+    choice = parts[2]
+    try:
+        uid = int(parts[3])
+    except Exception:
+        uid = call.from_user.id
+    if call.from_user.id != uid:
+        return await call.answer("❌ Это не твоя игра!", show_alert=True)
+
+    if game_type.startswith("dice"):
+        from handlers.dice_games import play_dice_direct
+        try:
+            dtype = int(game_type.replace("dice", ""))
+        except Exception:
+            dtype = 1
+        await play_dice_direct(call.message, dtype, choice)
+    elif game_type.startswith("sport_"):
+        from handlers.sport_games import play_sport_direct
+        await play_sport_direct(call.message,
+                                game_type.replace("sport_", ""), choice)
+    elif game_type == "slots":
+        from handlers.slots import play_slots_direct
+        await play_slots_direct(call.message, choice)
+    await call.answer()

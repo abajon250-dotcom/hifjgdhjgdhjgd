@@ -348,15 +348,21 @@ def withdraw_menu():
 # ============================================================
 def referrals_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💸 Вывести на баланс",
+                              callback_data="ref:withdraw",
+                              icon_custom_emoji_id="5443127283898405358",
+                              style="success")],
         [InlineKeyboardButton(text="Моя ссылка", callback_data="ref:link",
                               icon_custom_emoji_id="5271604874419647061",
-                              style="success")],
+                              style="primary")],
         [InlineKeyboardButton(text="Топ", callback_data="ref:top",
                               icon_custom_emoji_id="5307942883314147223",
                               style="primary")],
         [InlineKeyboardButton(text="Назад", callback_data="back_to_main",
                               style="danger")],
     ])
+
+
 
 
 def back_menu():
